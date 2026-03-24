@@ -75,15 +75,15 @@ npm run dev
 
 The following table outlines the current development priorities for enhancing the COG AI baseline.
 
-| Priority | Fix | Impact |
-| :--- | :--- | :--- |
-| 🔴 **P1** | Switch to DiGraph | Correctness of graph model (Directed Flow) |
-| 🔴 **P1** | Add Journal Entry + Payment nodes | Full O2C flow coverage and auditing |
-| 🟡 **P2** | Richer schema in LLM prompt | Better SQL generation for complex joins |
-| 🟡 **P2** | Cache graph in memory | Near-zero latency for large entity clusters |
-| 🟡 **P2** | Add python-dotenv to requirements | Standardization of deployment environments |
-| 🟢 **P3** | Conversation memory | Recursive reasoning and query refinement |
-| 🟢 **P3** | Broken flow endpoint | Direct anomaly detection within O2C paths |
+## System Roadmap & Priority Matrix
+ 
+- [x] **🔴 P1**: Switch to DiGraph – (Correctness of graph model / Directed Flow)
+- [x] **🔴 P1**: Add Journal Entry + Payment nodes – (Full O2C flow coverage and auditing)
+- [x] **🟡 P2**: Richer schema in LLM prompt – (Better SQL generation for complex joins)
+- [ ] **🟡 P2**: Cache graph in memory – (Near-zero latency for large entity clusters)
+- [x] **🟡 P2**: Add `python-dotenv` to requirements – (Standardization of environments)
+- [ ] **🟢 P3**: Conversation memory – (Recursive reasoning and query refinement)
+- [ ] **🟢 P3**: Broken flow endpoint – (Direct anomaly detection within O2C paths)
 
 ---
 

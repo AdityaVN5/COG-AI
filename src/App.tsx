@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+import ReactMarkdown from 'react-markdown';
 import DatabaseView from './components/DatabaseView';
 import HistoryView from './components/HistoryView';
 import SettingsView from './components/SettingsView';
@@ -240,7 +241,7 @@ export default function App() {
               maxScale={4}
               centerOnInit={true}
               limitToBounds={false}
-              panning={{ disabled: !!draggingNodeId, className: "cursor-grab active:cursor-grabbing" }}
+              panning={{ disabled: !!draggingNodeId }}
             >
               {({ zoomIn, zoomOut, resetTransform, centerView }) => (
                 <div className="w-full h-full relative">
@@ -410,7 +411,15 @@ export default function App() {
                   <div className={msg.role === 'user' 
                     ? "bg-primary text-on-primary p-4 rounded-2xl rounded-tr-none text-sm shadow-md"
                     : "bg-surface-container-lowest p-4 rounded-2xl rounded-tl-none text-sm text-on-surface leading-relaxed shadow-sm border border-outline-variant/5"}>
-                    {msg.text}
+                    {msg.role === 'ai' ? (
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <ReactMarkdown>
+                          {msg.text}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      msg.text
+                    )}
                   </div>
                   
                   {msg.role === 'ai' && msg.results && msg.results.rows && msg.results.rows.length > 0 && typeof msg.results.rows !== 'string' && (
