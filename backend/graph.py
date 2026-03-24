@@ -5,7 +5,7 @@ def build_graph(db_path):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     
-    G = nx.Graph()
+    G = nx.DiGraph()
     nodes_data = {}
     
     def add_node_data(n_id, theme, icon, label, n_type, sections):
