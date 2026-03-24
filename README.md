@@ -20,6 +20,7 @@ Unlike traditional dashboards, COG AI leverages a **Dynamic Text-to-SQL reasonin
 The system utilizes a semi-supervised ingestion pipeline to map relational entities into a cohesive graph topology. 
 - **Entity Resolution**: Converts raw JSONL document headers and items into unique graph nodes.
 - **Relational Mapping**: Infers edges through primary/foreign key heuristics (e.g., `SalesOrder` → `OutboundDelivery` → `BillingDocument`).
+- **Interactive Workspace**: Features a high-performance draggable UI, allowing users to manually reposition entities to optimize visual clusters while maintaining reactive edge connectivity.
 - **Spatial Optimization**: Implements a Force-Directed Spring Layout (via NetworkX) to minimize visual entropy and maximize cluster legibility in the UI.
 
 ### 2. Conversational Reasoning Fabric

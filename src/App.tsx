@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import DatabaseView from './components/DatabaseView';
 import HistoryView from './components/HistoryView';
@@ -30,18 +30,26 @@ export default function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   const [nodes, setNodes] = useState<NodeData[]>([]);
+  const [initialNodes, setInitialNodes] = useState<NodeData[]>([]);
   const [edges, setEdges] = useState<EdgeData[]>([]);
   const [messages, setMessages] = useState<{role: string, text: string, sql?: string, results?: any}[]>([
     { role: 'ai', text: "Hello! I've indexed your sap-o2c-data graph. You can ask about relationships, anomalies, or summaries across your entities." }
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const transformWrapperRef = useRef<any>(null);
+
+  // Dragging State
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const lastPointerPos = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     fetch('http://localhost:8000/api/graph')
+
       .then(res => res.json())
       .then(data => {
         setNodes(data.nodes || []);
+        setInitialNodes(JSON.parse(JSON.stringify(data.nodes || [])));
         setEdges(data.edges || []);
       })
       .catch(err => console.error("Error fetching graph data:", err));
@@ -69,7 +77,57 @@ export default function App() {
     }
   };
 
+  const handleNodePointerDown = (e: React.PointerEvent, nodeId: string) => {
+    e.stopPropagation();
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    
+    setDraggingNodeId(nodeId);
+    lastPointerPos.current = { x: e.clientX, y: e.clientY };
+    setSelectedNodeId(nodeId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!draggingNodeId) return;
+    
+    // Get current scale from TransformWrapper
+    const scale = transformWrapperRef.current?.state?.scale || 1;
+    
+    const dx = (e.clientX - lastPointerPos.current.x) / scale;
+    const dy = (e.clientY - lastPointerPos.current.y) / scale;
+
+    // Safety check against unhandled native drag jumps or zero-scale NaN
+    if (isNaN(dx) || isNaN(dy) || Math.abs(dx) > 500 || Math.abs(dy) > 500) {
+        lastPointerPos.current = { x: e.clientX, y: e.clientY };
+        return;
+    }
+
+    setNodes(prevNodes => prevNodes.map(node => {
+      if (node.id === draggingNodeId) {
+        return {
+          ...node,
+          x: Math.max(0, Math.min(3000, (node.x || 0) + dx)),
+          y: Math.max(0, Math.min(3000, (node.y || 0) + dy))
+        };
+      }
+      return node;
+    }));
+
+    lastPointerPos.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (draggingNodeId) {
+      setDraggingNodeId(null);
+    }
+  };
+
+  const resetPositions = () => {
+    setNodes(JSON.parse(JSON.stringify(initialNodes)));
+  };
+
   const selectedNode = nodes.find(n => n.id === selectedNodeId);
+
 
   useEffect(() => {
     if (isDarkMode) {
@@ -167,15 +225,22 @@ export default function App() {
         </nav>
 
         {/* Main Section: Graph Visualization (70%) */}
-        <section className="flex-1 relative overflow-hidden bg-surface-container-lowest graph-bg ml-16" onClick={() => setSelectedNodeId(null)}>
+        <section 
+          className="flex-1 relative overflow-hidden bg-surface-container-lowest graph-bg ml-16" 
+          onClick={() => setSelectedNodeId(null)}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
+        >
           <div className={`absolute inset-0 w-full h-full ${activeTab === 'hub' ? 'block' : 'hidden'}`}>
             <TransformWrapper
+              ref={transformWrapperRef}
               initialScale={1}
               minScale={0.1}
               maxScale={4}
               centerOnInit={true}
               limitToBounds={false}
-              panning={{ className: "cursor-grab active:cursor-grabbing" }}
+              panning={{ disabled: !!draggingNodeId, className: "cursor-grab active:cursor-grabbing" }}
             >
               {({ zoomIn, zoomOut, resetTransform, centerView }) => (
                 <div className="w-full h-full relative">
@@ -184,7 +249,7 @@ export default function App() {
                     wrapperStyle={{ width: "100%", height: "100%", position: "absolute", inset: 0 }} 
                     contentStyle={{ width: "3000px", height: "3000px" }}
                   >
-                    <div className="w-[3000px] h-[3000px] relative">
+                    <div className="w-[3000px] h-[3000px] relative select-none">
                       {/* Edges */}
                       <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-60" stroke="currentColor" strokeWidth="3">
                         {edges.map((edge, i) => {
@@ -212,12 +277,13 @@ export default function App() {
                         return (
                           <div
                             key={node.id}
-                            className={`absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer transition-all duration-300 ${isSelected ? 'z-20' : 'z-10 hover:z-20'}`}
+                            className={`absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer ${isSelected ? 'z-20' : 'z-10 hover:z-20'} ${draggingNodeId === node.id ? '' : 'transition-all duration-300'}`}
                             style={{ left: node.x, top: node.y }}
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedNodeId(node.id);
                             }}
+                            onPointerDown={(e) => handleNodePointerDown(e, node.id)}
                           >
                             <div className={`w-16 h-16 rounded-full flex items-center justify-center relative transition-all duration-300 ${isSelected ? theme.outerSelected : theme.outer}`}>
                               <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white transition-all duration-300 ${theme.inner} ${isSelected ? theme.shadow : 'shadow-md'}`}>
@@ -234,17 +300,34 @@ export default function App() {
                   </TransformComponent>
 
                 {/* Floating Controls */}
-                <div className="absolute bottom-8 left-8 flex flex-col gap-2 z-10" onClick={(e) => e.stopPropagation()}>
+                <div className="absolute bottom-6 left-6 flex flex-col gap-2 z-10 scale-90 origin-bottom-left" onClick={(e) => e.stopPropagation()}>
                   <div className="flex flex-col bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant/10 overflow-hidden">
-                    <button onClick={() => zoomIn()} className="p-3 hover:bg-surface-container-low transition-colors text-on-surface-variant"><span className="material-symbols-outlined">add</span></button>
+                    <button onClick={() => zoomIn()} className="p-2.5 hover:bg-surface-container-low transition-colors text-primary" title="Zoom In"><span className="material-symbols-outlined text-xl">add</span></button>
                     <div className="h-px bg-outline-variant/10 w-full"></div>
-                    <button onClick={() => zoomOut()} className="p-3 hover:bg-surface-container-low transition-colors text-on-surface-variant"><span className="material-symbols-outlined">remove</span></button>
+                    <button onClick={() => zoomOut()} className="p-2.5 hover:bg-surface-container-low transition-colors text-primary" title="Zoom Out"><span className="material-symbols-outlined text-xl">remove</span></button>
                   </div>
-                  <button onClick={() => centerView()} className="bg-surface-container-lowest p-3 rounded-xl shadow-lg border border-outline-variant/10 hover:bg-surface-container-low transition-colors text-on-surface-variant" title="Center View">
-                    <span className="material-symbols-outlined">center_focus_strong</span>
+                  <button onClick={() => resetPositions()} className="bg-surface-container-lowest p-2.5 rounded-xl shadow-lg border border-outline-variant/10 hover:bg-surface-container-low transition-colors text-primary" title="Reset Node Positions">
+                    <span className="material-symbols-outlined text-xl">restart_alt</span>
                   </button>
-                  <button onClick={() => resetTransform()} className="bg-surface-container-lowest p-3 rounded-xl shadow-lg border border-outline-variant/10 hover:bg-surface-container-low transition-colors text-on-surface-variant" title="Reset Zoom">
-                    <span className="material-symbols-outlined">restart_alt</span>
+                  <button 
+                    onClick={() => {
+                      const state = transformWrapperRef.current.state;
+                      transformWrapperRef.current.setTransform(state.positionX, state.positionY, 1);
+                    }} 
+                    className="bg-surface-container-lowest p-2.5 rounded-xl shadow-lg border border-outline-variant/10 hover:bg-surface-container-low transition-colors text-primary" 
+                    title="Reset Zoom (Scale 1x)"
+                  >
+                    <span className="material-symbols-outlined text-xl">zoom_in</span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      resetTransform();
+                      setTimeout(() => centerView(), 10);
+                    }} 
+                    className="bg-surface-container-lowest p-2.5 rounded-xl shadow-lg border border-outline-variant/10 hover:bg-surface-container-low transition-colors text-primary" 
+                    title="Reset View (Center All)"
+                  >
+                    <span className="material-symbols-outlined text-xl">zoom_out_map</span>
                   </button>
                 </div>
               </div>
