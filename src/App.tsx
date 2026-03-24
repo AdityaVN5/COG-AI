@@ -13,15 +13,23 @@ import HelpView from './components/HelpView';
 
 interface NodeData {
   id: string; theme: string; icon: string; label: string; x: number; y: number;
-  data: { status: string; amount: string; date: string; type: string; };
+  data: { 
+    type: string; 
+    sections?: { title: string; fields: { label: string; value: string | number }[] }[];
+  };
 }
 interface EdgeData { source: string; target: string; dashed: boolean; }
 
 
 const themeMap: Record<string, { outer: string, outerSelected: string, inner: string, shadow: string }> = {
+  order: { outer: 'bg-amber-500/20', outerSelected: 'bg-amber-500/40 scale-125', inner: 'bg-amber-600', shadow: 'shadow-[0_0_20px_rgba(245,158,11,0.6)]' },
+  customer: { outer: 'bg-indigo-500/20', outerSelected: 'bg-indigo-500/40 scale-125', inner: 'bg-indigo-600', shadow: 'shadow-[0_0_20px_rgba(79,70,229,0.6)]' },
+  product: { outer: 'bg-emerald-500/20', outerSelected: 'bg-emerald-500/40 scale-125', inner: 'bg-emerald-600', shadow: 'shadow-[0_0_20px_rgba(16,185,129,0.6)]' },
+  logistics: { outer: 'bg-purple-500/20', outerSelected: 'bg-purple-500/40 scale-125', inner: 'bg-purple-600', shadow: 'shadow-[0_0_20px_rgba(139,92,246,0.6)]' },
+  billing: { outer: 'bg-rose-500/20', outerSelected: 'bg-rose-500/40 scale-125', inner: 'bg-rose-600', shadow: 'shadow-[0_0_20px_rgba(244,63,94,0.6)]' },
+  journal: { outer: 'bg-cyan-500/20', outerSelected: 'bg-cyan-500/40 scale-125', inner: 'bg-cyan-600', shadow: 'shadow-[0_0_20px_rgba(6,182,212,0.6)]' },
+  payment: { outer: 'bg-teal-500/20', outerSelected: 'bg-teal-500/40 scale-125', inner: 'bg-teal-600', shadow: 'shadow-[0_0_20px_rgba(20,184,166,0.6)]' },
   primary: { outer: 'bg-primary/20', outerSelected: 'bg-primary/40 scale-125', inner: 'bg-primary', shadow: 'shadow-[0_0_20px_rgba(78,69,228,0.6)]' },
-  secondary: { outer: 'bg-secondary/10', outerSelected: 'bg-secondary/30 scale-125', inner: 'bg-secondary-dim', shadow: 'shadow-[0_0_20px_rgba(168,85,247,0.6)]' },
-  tertiary: { outer: 'bg-tertiary/10', outerSelected: 'bg-tertiary/30 scale-125', inner: 'bg-tertiary-dim', shadow: 'shadow-[0_0_20px_rgba(20,184,166,0.6)]' },
 };
 
 export default function App() {
@@ -243,7 +251,7 @@ export default function App() {
               limitToBounds={false}
               panning={{ disabled: !!draggingNodeId }}
             >
-              {({ zoomIn, zoomOut, resetTransform, centerView }) => (
+              {({ zoomIn, zoomOut, resetTransform, centerView, setTransform }) => (
                 <div className="w-full h-full relative">
                   {/* Graph Canvas Simulation */}
                   <TransformComponent 
@@ -312,8 +320,12 @@ export default function App() {
                   </button>
                   <button 
                     onClick={() => {
-                      const state = transformWrapperRef.current.state;
-                      transformWrapperRef.current.setTransform(state.positionX, state.positionY, 1);
+                        // Reset to 1x scale while preserving position relative to center
+                        // Best approach in v3 is using setTransform with the current state's offsets
+                        const state = transformWrapperRef.current?.state;
+                        if (state) {
+                            setTransform(state.positionX, state.positionY, 1);
+                        }
                     }} 
                     className="bg-surface-container-lowest p-2.5 rounded-xl shadow-lg border border-outline-variant/10 hover:bg-surface-container-low transition-colors text-primary" 
                     title="Reset Zoom (Scale 1x)"
@@ -323,7 +335,7 @@ export default function App() {
                   <button 
                     onClick={() => {
                       resetTransform();
-                      setTimeout(() => centerView(), 10);
+                      setTimeout(() => centerView(), 100);
                     }} 
                     className="bg-surface-container-lowest p-2.5 rounded-xl shadow-lg border border-outline-variant/10 hover:bg-surface-container-low transition-colors text-primary" 
                     title="Reset View (Center All)"
@@ -357,18 +369,24 @@ export default function App() {
                   <p className="text-xs text-on-surface-variant mt-0.5">Type: {selectedNode.data.type}</p>
                 </div>
               </div>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-y-3 bg-surface-container-low/50 p-3 rounded-xl border border-outline-variant/10">
-                  <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter">Status</div>
-                  <div className="text-[11px] font-medium text-on-surface flex items-center gap-1.5">
-                    <span className={`w-1.5 h-1.5 rounded-full ${selectedNode.data.status === 'Fulfilled' || selectedNode.data.status === 'Paid' || selectedNode.data.status === 'Active' ? 'bg-emerald-500' : selectedNode.data.status === 'In Transit' ? 'bg-blue-500' : 'bg-amber-500'}`}></span> {selectedNode.data.status}
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                {selectedNode.data.sections ? selectedNode.data.sections.map((section: any, idx: number) => (
+                  <div key={idx} className="mb-4 last:mb-0">
+                    <h4 className="text-[10px] font-bold text-primary uppercase tracking-widest mb-2 border-b border-outline-variant/10 pb-1">{section.title}</h4>
+                    <div className="grid grid-cols-1 gap-y-2 bg-surface-container-low/30 p-3 rounded-xl border border-outline-variant/10">
+                      {section.fields.map((field: any, fIdx: number) => (
+                        <div key={fIdx} className="flex flex-col">
+                          <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter">{field.label}</span>
+                          <span className="text-[11px] font-medium text-on-surface break-words leading-tight mt-0.5">{field.value}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter">Amount</div>
-                  <div className="text-[11px] font-medium text-on-surface">{selectedNode.data.amount}</div>
-                  <div className="text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter">Date</div>
-                  <div className="text-[11px] font-medium text-on-surface">{selectedNode.data.date}</div>
-                </div>
-                <button className="w-full py-2.5 bg-primary text-on-primary text-xs font-semibold rounded-lg hover:bg-primary-dim transition-all mt-2 flex items-center justify-center gap-2 shadow-sm hover:shadow">
+                )) : (
+                   <div className="text-xs text-on-surface-variant italic">No detailed attributes available.</div>
+                )}
+                
+                <button className="w-full py-2.5 bg-primary text-on-primary text-xs font-semibold rounded-lg hover:bg-primary-dim transition-all mt-4 flex items-center justify-center gap-2 shadow-sm hover:shadow shrink-0">
                   Deep Dive Analysis <span className="material-symbols-outlined text-sm">arrow_forward</span>
                 </button>
               </div>
