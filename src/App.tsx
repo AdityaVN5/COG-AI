@@ -10,36 +10,12 @@ import HistoryView from './components/HistoryView';
 import SettingsView from './components/SettingsView';
 import HelpView from './components/HelpView';
 
-const initialNodes = [
-  { id: 'ORDER_88231', theme: 'primary', icon: 'shopping_cart', label: 'ORDER_88231', x: 1500, y: 1500, data: { status: 'Fulfilled', amount: '$2,440.00', date: 'Oct 24, 2023', type: 'Transactional Order' } },
-  { id: 'CUST_1', theme: 'secondary', icon: 'person', label: 'Customer: Sarah J.', x: 1200, y: 1300, data: { status: 'Active', amount: 'N/A', date: 'Jan 12, 2022', type: 'Retail Customer' } },
-  { id: 'INV_22', theme: 'tertiary', icon: 'description', label: 'Invoice_V22', x: 1700, y: 1800, data: { status: 'Paid', amount: '$2,440.00', date: 'Oct 24, 2023', type: 'Billing' } },
-  { id: 'SHIP_90', theme: 'primary', icon: 'local_shipping', label: 'Shipment_90', x: 1800, y: 1300, data: { status: 'In Transit', amount: '--', date: 'Oct 25, 2023', type: 'Logistics' } },
-  { id: 'PROD_A', theme: 'secondary', icon: 'inventory_2', label: 'Widget Pro', x: 1200, y: 1700, data: { status: 'In Stock', amount: '$1,220.00', date: 'N/A', type: 'Product' } },
-  { id: 'PROD_B', theme: 'secondary', icon: 'inventory_2', label: 'Widget Lite', x: 1400, y: 1800, data: { status: 'In Stock', amount: '$1,220.00', date: 'N/A', type: 'Product' } },
-  { id: 'PAY_1', theme: 'tertiary', icon: 'payments', label: 'Payment_1', x: 1900, y: 1600, data: { status: 'Processed', amount: '$2,440.00', date: 'Oct 24, 2023', type: 'Transaction' } },
-  { id: 'SUPP_1', theme: 'secondary', icon: 'factory', label: 'Supplier A', x: 900, y: 1600, data: { status: 'Active', amount: 'N/A', date: 'N/A', type: 'Vendor' } },
-  { id: 'SUPP_2', theme: 'secondary', icon: 'factory', label: 'Supplier B', x: 1100, y: 1900, data: { status: 'Active', amount: 'N/A', date: 'N/A', type: 'Vendor' } },
-  { id: 'ORDER_88232', theme: 'primary', icon: 'shopping_cart', label: 'ORDER_88232', x: 1500, y: 1100, data: { status: 'Pending', amount: '$850.00', date: 'Oct 26, 2023', type: 'Transactional Order' } },
-  { id: 'CUST_2', theme: 'secondary', icon: 'person', label: 'Customer: Mike T.', x: 1200, y: 900, data: { status: 'Active', amount: 'N/A', date: 'Mar 05, 2023', type: 'Retail Customer' } },
-  { id: 'INV_23', theme: 'tertiary', icon: 'description', label: 'Invoice_V23', x: 1800, y: 1000, data: { status: 'Unpaid', amount: '$850.00', date: 'Oct 26, 2023', type: 'Billing' } },
-  { id: 'PROD_C', theme: 'secondary', icon: 'inventory_2', label: 'Gadget Max', x: 1200, y: 1100, data: { status: 'Low Stock', amount: '$850.00', date: 'N/A', type: 'Product' } },
-];
+interface NodeData {
+  id: string; theme: string; icon: string; label: string; x: number; y: number;
+  data: { status: string; amount: string; date: string; type: string; };
+}
+interface EdgeData { source: string; target: string; dashed: boolean; }
 
-const initialEdges = [
-  { source: 'CUST_1', target: 'ORDER_88231', dashed: false },
-  { source: 'INV_22', target: 'ORDER_88231', dashed: true },
-  { source: 'ORDER_88231', target: 'SHIP_90', dashed: false },
-  { source: 'PROD_A', target: 'ORDER_88231', dashed: false },
-  { source: 'PROD_B', target: 'ORDER_88231', dashed: false },
-  { source: 'INV_22', target: 'PAY_1', dashed: false },
-  { source: 'SUPP_1', target: 'PROD_A', dashed: true },
-  { source: 'SUPP_2', target: 'PROD_B', dashed: true },
-  { source: 'CUST_2', target: 'ORDER_88232', dashed: false },
-  { source: 'PROD_C', target: 'ORDER_88232', dashed: false },
-  { source: 'INV_23', target: 'ORDER_88232', dashed: true },
-  { source: 'SUPP_1', target: 'PROD_C', dashed: true },
-];
 
 const themeMap: Record<string, { outer: string, outerSelected: string, inner: string, shadow: string }> = {
   primary: { outer: 'bg-primary/20', outerSelected: 'bg-primary/40 scale-125', inner: 'bg-primary', shadow: 'shadow-[0_0_20px_rgba(78,69,228,0.6)]' },
@@ -51,9 +27,49 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('hub');
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>('ORDER_88231');
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  const selectedNode = initialNodes.find(n => n.id === selectedNodeId);
+  const [nodes, setNodes] = useState<NodeData[]>([]);
+  const [edges, setEdges] = useState<EdgeData[]>([]);
+  const [messages, setMessages] = useState<{role: string, text: string, sql?: string, results?: any}[]>([
+    { role: 'ai', text: "Hello! I've indexed your sap-o2c-data graph. You can ask about relationships, anomalies, or summaries across your entities." }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
+  useEffect(() => {
+    fetch('http://localhost:8000/api/graph')
+      .then(res => res.json())
+      .then(data => {
+        setNodes(data.nodes || []);
+        setEdges(data.edges || []);
+      })
+      .catch(err => console.error("Error fetching graph data:", err));
+  }, []);
+
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || isChatLoading) return;
+    const userMsg = { role: 'user', text: chatInput };
+    setMessages(prev => [...prev, userMsg]);
+    setChatInput('');
+    setIsChatLoading(true);
+
+    try {
+      const res = await fetch('http://localhost:8000/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: userMsg.text })
+      });
+      const data = await res.json();
+      setMessages(prev => [...prev, { role: 'ai', text: data.text, sql: data.sql, results: data.results }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { role: 'ai', text: "Error connecting to the analytical engine." }]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  const selectedNode = nodes.find(n => n.id === selectedNodeId);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -171,10 +187,10 @@ export default function App() {
                     <div className="w-[3000px] h-[3000px] relative">
                       {/* Edges */}
                       <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-60" stroke="currentColor" strokeWidth="3">
-                        {initialEdges.map((edge, i) => {
-                          const sourceNode = initialNodes.find(n => n.id === edge.source);
-                          const targetNode = initialNodes.find(n => n.id === edge.target);
-                          if (!sourceNode || !targetNode) return null;
+                        {edges.map((edge, i) => {
+                          const sourceNode = nodes.find(n => n.id === edge.source);
+                          const targetNode = nodes.find(n => n.id === edge.target);
+                          if (!sourceNode || !targetNode || sourceNode.x === undefined) return null;
                           return (
                             <line
                               key={i}
@@ -190,9 +206,9 @@ export default function App() {
                       </svg>
 
                       {/* Nodes */}
-                      {initialNodes.map(node => {
+                      {nodes.map(node => {
                         const isSelected = selectedNodeId === node.id;
-                        const theme = themeMap[node.theme];
+                        const theme = themeMap[node.theme] || themeMap['primary'];
                         return (
                           <div
                             key={node.id}
@@ -300,84 +316,82 @@ export default function App() {
 
           {/* Chat History */}
           <div className={`flex-1 overflow-y-auto p-6 space-y-6 min-w-[300px] transition-opacity duration-300 ${isRightSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-            {/* AI Message */}
-            <div className="flex gap-4">
-              <div className="w-8 h-8 shrink-0 rounded-lg bg-primary-container/20 flex items-center justify-center text-primary">
-                <span className="material-symbols-outlined text-sm">auto_awesome</span>
-              </div>
-              <div className="space-y-4 max-w-[90%]">
-                <div className="bg-surface-container-lowest p-4 rounded-2xl rounded-tl-none text-sm text-on-surface leading-relaxed shadow-sm border border-outline-variant/5">
-                  Hello! I've indexed your data graph. You can ask about relationships, anomalies, or summaries across your entities.
-                </div>
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest px-1">Suggested Queries</p>
-                  <div className="flex flex-col gap-2">
-                    <button className="text-left text-xs p-3 rounded-xl bg-surface-container-lowest border border-outline-variant/20 hover:bg-primary-container/5 hover:border-primary/30 transition-all text-on-surface-variant flex justify-between items-center group">
-                      Which products have the highest billing count?
-                      <span className="material-symbols-outlined text-sm opacity-0 group-hover:opacity-100">north_east</span>
-                    </button>
-                    <button className="text-left text-xs p-3 rounded-xl bg-surface-container-lowest border border-outline-variant/20 hover:bg-primary-container/5 hover:border-primary/30 transition-all text-on-surface-variant flex justify-between items-center group">
-                      Find incomplete order flows for Q4
-                      <span className="material-symbols-outlined text-sm opacity-0 group-hover:opacity-100">north_east</span>
-                    </button>
+            {messages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'gap-4'}`}>
+                {msg.role === 'ai' && (
+                  <div className="w-8 h-8 shrink-0 rounded-lg bg-primary-container/20 flex items-center justify-center text-primary">
+                    <span className="material-symbols-outlined text-sm">auto_awesome</span>
                   </div>
+                )}
+                <div className={`space-y-4 ${msg.role === 'user' ? 'max-w-[85%]' : 'w-full max-w-[90%]'}`}>
+                  <div className={msg.role === 'user' 
+                    ? "bg-primary text-on-primary p-4 rounded-2xl rounded-tr-none text-sm shadow-md"
+                    : "bg-surface-container-lowest p-4 rounded-2xl rounded-tl-none text-sm text-on-surface leading-relaxed shadow-sm border border-outline-variant/5"}>
+                    {msg.text}
+                  </div>
+                  
+                  {msg.role === 'ai' && msg.results && msg.results.rows && msg.results.rows.length > 0 && typeof msg.results.rows !== 'string' && (
+                    <div className="bg-surface-container-lowest border border-outline-variant/15 rounded-xl overflow-x-auto shadow-sm">
+                      <table className="w-full text-[11px] whitespace-nowrap">
+                        <thead className="bg-surface-container-low border-b border-outline-variant/10 text-on-surface-variant uppercase">
+                          <tr>
+                            {msg.results.columns.map((col: string, ci: number) => (
+                              <th key={ci} className="text-left p-3 font-bold tracking-tighter">{col}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-outline-variant/5">
+                          {msg.results.rows.slice(0, 5).map((row: any[], ri: number) => (
+                            <tr key={ri} className="hover:bg-surface-container-low/50">
+                              {row.map((cell: any, cj: number) => (
+                                <td key={cj} className="p-3 font-medium">{String(cell)}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-
-            {/* User Message */}
-            <div className="flex justify-end">
-              <div className="bg-primary text-on-primary p-4 rounded-2xl rounded-tr-none text-sm max-w-[85%] shadow-md">
-                Show me a breakdown of all transactions linked to <span className="bg-white/20 px-1 rounded font-medium">Order #88231</span>.
-              </div>
-            </div>
-
-            {/* AI Response */}
-            <div className="flex gap-4">
-              <div className="w-8 h-8 shrink-0 rounded-lg bg-primary-container/20 flex items-center justify-center text-primary">
-                <span className="material-symbols-outlined text-sm">auto_awesome</span>
-              </div>
-              <div className="space-y-4 w-full">
-                <div className="bg-surface-container-lowest p-4 rounded-2xl rounded-tl-none text-sm text-on-surface leading-relaxed shadow-sm border border-outline-variant/5">
-                  Found 3 related transactional entities for Order #88231. The graph indicates a direct dependency on Invoice_V22.
+            ))}
+            {isChatLoading && (
+              <div className="flex gap-4">
+                <div className="w-8 h-8 shrink-0 rounded-lg bg-primary-container/20 flex items-center justify-center text-primary">
+                  <span className="material-symbols-outlined text-sm animate-pulse">auto_awesome</span>
                 </div>
-                {/* Mini Table */}
-                <div className="bg-surface-container-lowest border border-outline-variant/15 rounded-xl overflow-hidden shadow-sm">
-                  <table className="w-full text-[11px]">
-                    <thead className="bg-surface-container-low border-b border-outline-variant/10 text-on-surface-variant uppercase">
-                      <tr>
-                        <th className="text-left p-3 font-bold tracking-tighter">Entity</th>
-                        <th className="text-left p-3 font-bold tracking-tighter">Type</th>
-                        <th className="text-right p-3 font-bold tracking-tighter">Value</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-outline-variant/5">
-                      <tr className="hover:bg-surface-container-low/50">
-                        <td className="p-3 font-medium">Invoice_V22</td>
-                        <td className="p-3 text-on-surface-variant">Billing</td>
-                        <td className="p-3 text-right">$2,440.00</td>
-                      </tr>
-                      <tr className="hover:bg-surface-container-low/50">
-                        <td className="p-3 font-medium">Shipment_90</td>
-                        <td className="p-3 text-on-surface-variant">Logistics</td>
-                        <td className="p-3 text-right">--</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                <div className="bg-surface-container-lowest p-4 rounded-2xl rounded-tl-none text-sm text-on-surface/50 shadow-sm border border-outline-variant/5 animate-pulse">
+                  Analyzing graph context...
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Chat Input */}
           <div className={`p-6 pt-0 min-w-[300px] transition-opacity duration-300 ${isRightSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
             <div className="relative flex items-end gap-2 bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-2 shadow-sm focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/40 transition-all">
-              <textarea className="flex-1 bg-transparent border-none focus:ring-0 text-sm py-2 px-3 resize-none max-h-32 placeholder:text-on-surface-variant/50 outline-none" placeholder="Ask COG AI..." rows={1}></textarea>
+              <textarea 
+                className="flex-1 bg-transparent border-none focus:ring-0 text-sm py-2 px-3 resize-none max-h-32 placeholder:text-on-surface-variant/50 outline-none" 
+                placeholder="Ask COG AI..." 
+                rows={1}
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+              />
               <div className="flex items-center gap-1 p-1">
                 <button className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors">
                   <span className="material-symbols-outlined text-lg">attach_file</span>
                 </button>
-                <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-primary text-on-primary hover:bg-primary-dim transition-all shadow-md">
+                <button 
+                  className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all shadow-md ${chatInput.trim() ? 'bg-primary text-on-primary hover:bg-primary-dim' : 'bg-surface-container-high text-on-surface-variant/50'}`}
+                  onClick={handleSendMessage}
+                  disabled={!chatInput.trim() || isChatLoading}
+                >
                   <span className="material-symbols-outlined text-lg">send</span>
                 </button>
               </div>
