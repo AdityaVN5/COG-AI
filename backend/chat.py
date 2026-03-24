@@ -18,16 +18,31 @@ def query_chat(user_query, db_path):
         columns = [row[1] for row in cur.fetchall()]
         schema_str += f"Table {t}: {', '.join(columns)}\n"
 
-    prompt_sql = f"""You are a SQLite expert. Given the following database schema:
+    prompt_sql = f"""You are a strict data assistant. Your job is to convert user queries into SQLite queries based on the provided schema.
+
+### Guardrails
+You MUST strictly evaluate if the user's query is related to the provided dataset, business data, or SAP O2C domain. 
+If the user asks a general knowledge question, makes a creative writing request, or asks about an irrelevant topic, you MUST respond with EXACTLY the word "REJECT" and nothing else.
+
+Schema:
 {schema_str}
+
 The user asks: "{user_query}"
-Respond ONLY with a valid SQLite query, no markdown formatting, no explanations. Do not include ```sql tags.
+If relevant, respond ONLY with a valid SQLite query, no markdown formatting, no explanations. Do not include ```sql tags.
+If irrelevant, respond ONLY with "REJECT".
 """
     sql_response = client.models.generate_content(
         model='gemini-3.1-flash-lite-preview',
         contents=prompt_sql
     )
     sql_query = sql_response.text.strip().replace("```sql", "").replace("```", "").strip()
+
+    if sql_query.upper() == "REJECT" or "REJECT" in sql_query.upper():
+        return {
+            "text": "This system is designed to answer questions related to the provided dataset only.",
+            "sql": None,
+            "results": {"columns": [], "rows": []}
+        }
 
     try:
         cur.execute(sql_query)

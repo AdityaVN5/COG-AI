@@ -150,7 +150,6 @@ export default function App() {
 
   const leftTabs = [
     { id: 'hub', icon: 'hub' },
-    { id: 'database', icon: 'database' },
     { id: 'history', icon: 'history' },
   ];
 
