@@ -384,4 +384,9 @@ def build_graph(db_path):
             "dashed": data.get("dashed", False)
         })
         
-    return {"nodes": nodes_out, "edges": edges_out}
+    import datetime
+    return {
+        "nodes": nodes_out, 
+        "edges": edges_out, 
+        "generated_at": datetime.datetime.now().isoformat()
+    }
