@@ -24,7 +24,7 @@ The user asks: "{user_query}"
 Respond ONLY with a valid SQLite query, no markdown formatting, no explanations. Do not include ```sql tags.
 """
     sql_response = client.models.generate_content(
-        model='gemini-2.5-flash',
+        model='gemini-3.1-flash-lite-preview',
         contents=prompt_sql
     )
     sql_query = sql_response.text.strip().replace("```sql", "").replace("```", "").strip()
@@ -52,7 +52,7 @@ The database returned these results: {results}
 Formulate a concise, insightful natural language response answering the user's question. If the result is an error, just say you couldn't find the answer. Do not show the SQL query unless asked explicitly. Format it nicely.
 """
     final_response = client.models.generate_content(
-        model='gemini-2.5-flash',
+        model='gemini-3.1-flash-lite-preview',
         contents=prompt_final
     )
     
