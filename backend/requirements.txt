@@ -3,4 +3,4 @@ uvicorn
 networkx
 google-genai
 pydantic
-pandas
+python-dotenv
