@@ -97,15 +97,12 @@ export default function HistoryView({ onSelect }: HistoryViewProps) {
                   </button>
                 </div>
                 
-                <div className="flex flex-col gap-3 pt-2">
+                <div className="flex flex-col gap-1 pt-2">
                     <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest opacity-50">Token usage</span>
                         <div className="px-2 py-0.5 bg-secondary-container/30 rounded text-[10px] font-mono font-bold text-secondary">
                             {item.totalTokens?.toLocaleString() || 0}
                         </div>
-                    </div>
-                    <div className="w-full h-1 bg-outline-variant/10 rounded-full overflow-hidden">
-                        <div className="h-full bg-secondary transition-all" style={{ width: `${Math.min(100, (item.totalTokens || 0) / 50)}%` }}></div>
                     </div>
                 </div>
 
