@@ -37,6 +37,8 @@ export default function App() {
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('hub');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [nodeGap, setNodeGap] = useState(1.0);
+  const [showGapSlider, setShowGapSlider] = useState(false);
 
   const generateId = () => `chat_${new Date().toISOString().replace(/[:.]/g, '-')}`;
   const [chatId, setChatId] = useState<string>(generateId());
@@ -54,6 +56,7 @@ export default function App() {
 
   // Dragging State
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const [totalTokens, setTotalTokens] = useState(0);
   const lastPointerPos = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -71,25 +74,95 @@ export default function App() {
   const handleSendMessage = async () => {
     if (!chatInput.trim() || isChatLoading) return;
     const userMsg = { role: 'user', text: chatInput };
+    
+    // Capture current history before update
+    const currentHistory = [...messages];
+    
     setMessages(prev => [...prev, userMsg]);
     setChatInput('');
     setIsChatLoading(true);
 
     try {
+      const historyPayload = currentHistory.map(m => ({ role: m.role, text: m.text }));
+      
       const res = await fetch('http://localhost:8000/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: userMsg.text })
+        body: JSON.stringify({ query: userMsg.text, history: historyPayload })
       });
-      const data = await res.json();
-      setMessages(prev => [...prev, { role: 'ai', text: data.text, sql: data.sql, results: data.results, highlight_nodes: data.highlight_nodes }]);
-      if (data.highlight_nodes && Array.isArray(data.highlight_nodes)) {
-        setHighlightedNodes(data.highlight_nodes);
-      } else {
-        setHighlightedNodes([]);
+      
+      if (!res.body) throw new Error("No response body");
+
+      // Add a placeholder AI message that we will stream into
+      setMessages(prev => [...prev, { role: 'ai', text: "", sql: null, results: null, highlight_nodes: [] }]);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let done = false;
+      let aiText = "";
+
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.slice(6);
+              if (!dataStr.trim()) continue;
+              try {
+                const data = JSON.parse(dataStr);
+                
+                if (data.usage && data.usage.total_tokens) {
+                  setTotalTokens(prev => prev + data.usage.total_tokens);
+                }
+
+                if (data.text) {
+                  aiText += data.text;
+                  setMessages(prev => {
+                    const newMsgs = [...prev];
+                    newMsgs[newMsgs.length - 1] = { ...newMsgs[newMsgs.length - 1], text: aiText };
+                    return newMsgs;
+                  });
+                }
+                
+                if (data.sql !== undefined || data.results !== undefined) {
+                  // Final payload
+                  setMessages(prev => {
+                    const newMsgs = [...prev];
+                    newMsgs[newMsgs.length - 1] = { 
+                      ...newMsgs[newMsgs.length - 1], 
+                      sql: data.sql, 
+                      results: data.results, 
+                      highlight_nodes: data.highlight_nodes || []
+                    };
+                    return newMsgs;
+                  });
+                  if (data.highlight_nodes && Array.isArray(data.highlight_nodes)) {
+                    setHighlightedNodes(data.highlight_nodes);
+                  } else {
+                    setHighlightedNodes([]);
+                  }
+                }
+              } catch (e) {
+                console.error("Error parsing stream chunk", e, dataStr);
+              }
+            }
+          }
+        }
       }
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'ai', text: "Error connecting to the analytical engine." }]);
+      console.error(err);
+      setMessages(prev => {
+        const newMsgs = [...prev];
+        if (newMsgs[newMsgs.length - 1].role === 'ai' && newMsgs[newMsgs.length - 1].text === "") {
+             newMsgs[newMsgs.length - 1] = { role: 'ai', text: "Error connecting to the analytical engine." };
+             return newMsgs;
+        } else {
+             return [...prev, { role: 'ai', text: "Error connecting to the analytical engine." }];
+        }
+      });
     } finally {
       setIsChatLoading(false);
     }
@@ -117,12 +190,13 @@ export default function App() {
       await fetch('http://localhost:8000/api/history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: chatId, messages })
+        body: JSON.stringify({ id: chatId, messages, totalTokens })
       });
     }
     setChatId(generateId());
     setMessages([{ role: 'ai', text: "Hello! I've indexed your sap-o2c-data graph. You can ask about relationships, anomalies, or summaries across your entities." }]);
     setHighlightedNodes([]);
+    setTotalTokens(0);
   };
 
   const loadConversation = async (id: string) => {
@@ -133,6 +207,7 @@ export default function App() {
         if (data.messages && data.messages.length > 0) {
           setChatId(id);
           setMessages(data.messages);
+          setTotalTokens(data.totalTokens || 0);
           setHighlightedNodes(data.messages[data.messages.length-1]?.highlight_nodes || []);
           setActiveTab('hub');
           setIsRightSidebarOpen(true);
@@ -319,15 +394,23 @@ export default function App() {
                           const sourceNode = nodes.find(n => n.id === edge.source);
                           const targetNode = nodes.find(n => n.id === edge.target);
                           if (!sourceNode || !targetNode || sourceNode.x === undefined) return null;
+                          
+                          const center = 1500;
+                          const x1 = center + (sourceNode.x - center) * nodeGap;
+                          const y1 = center + (sourceNode.y - center) * nodeGap;
+                          const x2 = center + (targetNode.x - center) * nodeGap;
+                          const y2 = center + (targetNode.y - center) * nodeGap;
+
                           return (
                             <line
                               key={i}
-                              x1={sourceNode.x}
-                              y1={sourceNode.y}
-                              x2={targetNode.x}
-                              y2={targetNode.y}
+                              x1={x1}
+                              y1={y1}
+                              x2={x2}
+                              y2={y2}
                               strokeDasharray={edge.dashed ? "8" : "0"}
-                              className="text-on-surface-variant"
+                              className="text-on-surface-variant transition-all duration-300"
+                              strokeOpacity={0.4}
                             />
                           );
                         })}
@@ -340,12 +423,16 @@ export default function App() {
                         const isAnyNodeHighlighted = highlightedNodes.length > 0;
                         const isDimmed = isAnyNodeHighlighted && !isHighlighted;
                         
+                        const center = 1500;
+                        const nx = center + (node.x - center) * nodeGap;
+                        const ny = center + (node.y - center) * nodeGap;
+
                         const theme = themeMap[node.theme] || themeMap['primary'];
                         return (
                           <div
                             key={node.id}
                             className={`absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer ${isSelected || isHighlighted ? 'z-20' : 'z-10 hover:z-20'} ${draggingNodeId === node.id ? '' : 'transition-all duration-300'} ${isDimmed ? 'grayscale opacity-60' : ''}`}
-                            style={{ left: node.x, top: node.y }}
+                            style={{ left: nx, top: ny }}
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedNodeId(node.id);
@@ -376,20 +463,32 @@ export default function App() {
                   <button onClick={() => resetPositions()} className="bg-surface-container-lowest p-2.5 rounded-xl shadow-lg border border-outline-variant/10 hover:bg-surface-container-low transition-colors text-primary" title="Reset Node Positions">
                     <span className="material-symbols-outlined text-xl">restart_alt</span>
                   </button>
-                  <button 
-                    onClick={() => {
-                        // Reset to 1x scale while preserving position relative to center
-                        // Best approach in v3 is using setTransform with the current state's offsets
-                        const state = transformWrapperRef.current?.state;
-                        if (state) {
-                            setTransform(state.positionX, state.positionY, 1);
-                        }
-                    }} 
-                    className="bg-surface-container-lowest p-2.5 rounded-xl shadow-lg border border-outline-variant/10 hover:bg-surface-container-low transition-colors text-primary" 
-                    title="Reset Zoom (Scale 1x)"
-                  >
-                    <span className="material-symbols-outlined text-xl">zoom_in</span>
-                  </button>
+                  <div className="relative">
+                    {showGapSlider && (
+                      <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 w-48 bg-surface-container-lowest/95 backdrop-blur-md rounded-2xl shadow-2xl border border-outline-variant/20 p-4 animate-in fade-in slide-in-from-left-2 duration-200 z-50">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Node Spacing</span>
+                          <span className="text-[10px] font-mono text-on-surface-variant">{nodeGap.toFixed(1)}x</span>
+                        </div>
+                        <input 
+                          type="range" 
+                          min="0.5" 
+                          max="3.0" 
+                          step="0.1" 
+                          value={nodeGap}
+                          onChange={(e) => setNodeGap(parseFloat(e.target.value))}
+                          className="w-full h-1.5 bg-primary/10 rounded-lg appearance-none cursor-pointer accent-primary"
+                        />
+                      </div>
+                    )}
+                    <button 
+                      onClick={() => setShowGapSlider(!showGapSlider)} 
+                      className={`p-2.5 rounded-xl shadow-lg border border-outline-variant/10 transition-all ${showGapSlider ? 'bg-primary text-on-primary' : 'bg-surface-container-lowest hover:bg-surface-container-low text-primary'}`} 
+                      title="Adjust Node Spacing"
+                    >
+                      <span className="material-symbols-outlined text-xl">straighten</span>
+                    </button>
+                  </div>
                   <button 
                     onClick={() => {
                       resetTransform();

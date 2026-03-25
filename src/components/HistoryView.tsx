@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 interface HistoryItem {
   id: string;
   filename: string;
+  totalTokens?: number;
 }
 
 interface HistoryViewProps {
@@ -13,7 +14,8 @@ export default function HistoryView({ onSelect }: HistoryViewProps) {
   const [historyList, setHistoryList] = useState<HistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchHistory = () => {
+    setIsLoading(true);
     fetch('http://localhost:8000/api/history')
       .then(res => res.json())
       .then(data => {
@@ -24,32 +26,94 @@ export default function HistoryView({ onSelect }: HistoryViewProps) {
         console.error(err);
         setIsLoading(false);
       });
+  };
+
+  useEffect(() => {
+    fetchHistory();
   }, []);
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this conversation?")) return;
+    
+    try {
+      const res = await fetch(`http://localhost:8000/api/history/${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        fetchHistory();
+      }
+    } catch (err) {
+      console.error("Failed to delete history item", err);
+    }
+  };
 
   return (
     <div className="p-8 h-full overflow-y-auto bg-surface-container-lowest text-on-surface">
-      <h1 className="text-3xl font-bold mb-6">Conversation History</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold tracking-tight">Conversation History</h1>
+        <div className="px-3 py-1.5 bg-primary/10 rounded-lg border border-primary/20 flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-sm">analytics</span>
+            <span className="text-[10px] font-bold text-primary uppercase tracking-widest">{historyList.length} Sessions Saved</span>
+        </div>
+      </div>
       
-      <div className="bg-surface-container-low rounded-2xl border border-outline-variant/20 p-6">
+      <div className="bg-surface-container-low rounded-3xl border border-outline-variant/10 p-8">
         {isLoading ? (
-          <div className="text-sm text-on-surface-variant animate-pulse">Loading history...</div>
+          <div className="flex flex-col items-center justify-center p-12 text-on-surface-variant animate-pulse">
+            <span className="material-symbols-outlined text-4xl mb-4">history</span>
+            <p className="text-sm font-medium">Loading your archive...</p>
+          </div>
         ) : historyList.length === 0 ? (
-          <div className="text-sm text-on-surface-variant italic">No previous conversations found. They will appear here once saved.</div>
+          <div className="flex flex-col items-center justify-center p-12 text-on-surface-variant/60 text-center border-2 border-dashed border-outline-variant/20 rounded-2xl">
+            <span className="material-symbols-outlined text-4xl mb-4 opacity-20">chat_bubble</span>
+            <p className="text-sm font-medium italic">No previous conversations found.</p>
+            <p className="text-[10px] mt-1 uppercase tracking-widest opacity-50">Sessions appear here after a new chat is started</p>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {historyList.map(item => (
               <div 
                 key={item.id} 
                 onClick={() => onSelect(item.id)}
-                className="bg-surface-container-lowest rounded-xl border border-outline-variant/20 p-5 cursor-pointer hover:bg-surface-variant/40 hover:border-primary/30 transition-all flex flex-col gap-2 shadow-sm hover:shadow"
+                className="group relative bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-6 cursor-pointer hover:bg-surface-container-high/40 hover:border-primary/40 transition-all flex flex-col gap-4 shadow-sm hover:shadow-xl hover:-translate-y-1"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <span className="material-symbols-outlined text-primary text-sm">chat</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shadow-inner">
+                      <span className="material-symbols-outlined text-xl">chat_bubble</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm text-on-surface leading-none mb-1">Session</h3>
+                      <p className="text-[10px] text-on-surface-variant font-mono opacity-60">ID: {item.id.split('_').slice(-1)}</p>
+                    </div>
                   </div>
-                  <h3 className="font-bold text-sm truncate">Chat Session</h3>
+                  <button 
+                    onClick={(e) => handleDelete(e, item.id)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-error/10 hover:text-error transition-all opacity-0 group-hover:opacity-100"
+                    title="Delete Conversation"
+                  >
+                    <span className="material-symbols-outlined text-xl">delete</span>
+                  </button>
                 </div>
-                <p className="text-xs text-on-surface-variant font-mono truncate pl-11">{item.id}</p>
+                
+                <div className="flex flex-col gap-3 pt-2">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest opacity-50">Token usage</span>
+                        <div className="px-2 py-0.5 bg-secondary-container/30 rounded text-[10px] font-mono font-bold text-secondary">
+                            {item.totalTokens?.toLocaleString() || 0}
+                        </div>
+                    </div>
+                    <div className="w-full h-1 bg-outline-variant/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-secondary transition-all" style={{ width: `${Math.min(100, (item.totalTokens || 0) / 50)}%` }}></div>
+                    </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-outline-variant/10 mt-1">
+                    <span className="text-[10px] font-bold text-primary uppercase tracking-widest group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                        Resume <span className="material-symbols-outlined text-xs">arrow_forward</span>
+                    </span>
+                </div>
               </div>
             ))}
           </div>

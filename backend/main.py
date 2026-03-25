@@ -3,7 +3,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from .graph import build_graph
-from .chat import query_chat
 
 app = FastAPI()
 
@@ -21,8 +20,16 @@ DB_PATH = os.path.join(BASE_DIR, 'data.db')
 # In-memory cache for graph data
 _graph_cache = None
 
+from typing import List
+from fastapi.responses import StreamingResponse
+
+class MessageContext(BaseModel):
+    role: str
+    text: str
+
 class ChatRequest(BaseModel):
     query: str
+    history: List[MessageContext] = []
 
 @app.get("/api/graph")
 def get_graph(refresh: bool = False):
@@ -39,7 +46,9 @@ def get_graph(refresh: bool = False):
 @app.post("/api/chat")
 def chat_endpoint(request: ChatRequest):
     try:
-        return query_chat(request.query, DB_PATH)
+        from .chat import query_chat_stream
+        history_dicts = [{"role": m.role, "text": m.text} for m in request.history]
+        return StreamingResponse(query_chat_stream(request.query, history_dicts, DB_PATH), media_type="text/event-stream")
     except Exception as e:
         print("Error in /api/chat:", e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -47,6 +56,7 @@ def chat_endpoint(request: ChatRequest):
 class SaveHistoryRequest(BaseModel):
     id: str
     messages: list
+    totalTokens: int = 0
 
 import json
 import re
@@ -57,6 +67,12 @@ def save_history(request: SaveHistoryRequest):
     os.makedirs(history_dir, exist_ok=True)
     
     md_content = f"# Conversation {request.id}\n\n"
+    # Metadata as a hidden JSON comment for easy state reconstruction
+    state_meta = {
+        "messages": request.messages,
+        "totalTokens": request.totalTokens
+    }
+    md_content += f"<!-- STATE_META_DO_NOT_EDIT: {json.dumps(state_meta)} -->\n\n"
     for msg in request.messages:
         role = "User" if msg.get("role") == "user" else "COG AI"
         md_content += f"### {role}\n{msg.get('text')}\n\n"
@@ -74,6 +90,14 @@ def save_history(request: SaveHistoryRequest):
     
     return {"status": "success", "id": request.id}
 
+@app.delete("/api/history/{conv_id}")
+def delete_history(conv_id: str):
+    history_file = os.path.join(BASE_DIR, 'history', f"{conv_id}.md")
+    if os.path.exists(history_file):
+        os.remove(history_file)
+        return {"status": "deleted"}
+    raise HTTPException(status_code=404, detail="Conversation not found")
+
 @app.get("/api/history")
 def list_history():
     history_dir = os.path.join(BASE_DIR, 'history')
@@ -82,7 +106,24 @@ def list_history():
     
     files = [f for f in os.listdir(history_dir) if f.endswith('.md')]
     files.sort(reverse=True)
-    return [{"id": f.replace('.md', ''), "filename": f} for f in files]
+    
+    results = []
+    for f in files:
+        cid = f.replace('.md', '')
+        filepath = os.path.join(history_dir, f)
+        tokens = 0
+        try:
+            with open(filepath, "r", encoding="utf-8") as file:
+                head = file.read(2048) # Read first 2KB for meta
+                match = re.search(r"<!-- STATE_META_DO_NOT_EDIT: (.*) -->", head)
+                if match:
+                    meta = json.loads(match.group(1))
+                    tokens = meta.get("totalTokens", 0)
+        except:
+            pass
+        results.append({"id": cid, "filename": f, "totalTokens": tokens})
+        
+    return results
 
 @app.get("/api/history/{conv_id}")
 def get_history(conv_id: str):
@@ -96,10 +137,16 @@ def get_history(conv_id: str):
     
     match = re.search(r"<!-- STATE_META_DO_NOT_EDIT: (.*) -->", content)
     messages = []
+    total_tokens = 0
     if match:
         try:
-            messages = json.loads(match.group(1))
+            meta = json.loads(match.group(1))
+            if isinstance(meta, dict):
+                messages = meta.get("messages", [])
+                total_tokens = meta.get("totalTokens", 0)
+            else:
+                messages = meta # legacy fallback
         except:
             pass
             
-    return {"id": conv_id, "messages": messages, "markdown": content}
+    return {"id": conv_id, "messages": messages, "totalTokens": total_tokens, "markdown": content}

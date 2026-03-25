@@ -1,11 +1,12 @@
 import os
 import sqlite3
+import json
 from google import genai
 from dotenv import load_dotenv
 
 load_dotenv()
 
-def query_chat(user_query, db_path):
+def query_chat_stream(user_query, history, db_path):
     client = genai.Client()
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
@@ -35,14 +36,13 @@ If irrelevant, respond ONLY with "REJECT".
         model='gemini-3.1-flash-lite-preview',
         contents=prompt_sql
     )
+    total_tokens = sql_response.usage_metadata.total_token_count if sql_response.usage_metadata else 0
     sql_query = sql_response.text.strip().replace("```sql", "").replace("```", "").strip()
 
     if sql_query.upper() == "REJECT" or "REJECT" in sql_query.upper():
-        return {
-            "text": "This system is designed to answer questions related to the provided dataset only.",
-            "sql": None,
-            "results": {"columns": [], "rows": []}
-        }
+        yield f'data: {{"text": "This system is designed to answer questions related to the provided dataset only."}}\n\n'
+        yield f'data: {json.dumps({"sql": None, "results": {"columns": [], "rows": []}, "highlight_nodes": []})}\n\n'
+        return
 
     highlight_nodes = []
     try:
@@ -89,14 +89,29 @@ The database returned these results: {results}
 
 Formulate a concise, insightful natural language response answering the user's question. If the result is an error, just say you couldn't find the answer. Do not show the SQL query unless asked explicitly. Format it nicely.
 """
-    final_response = client.models.generate_content(
+    messages = []
+    # Sliding window: last 4 messages to save tokens
+    for msg in history[-4:]:
+        role = "user" if msg["role"] == "user" else "model"
+        messages.append({"role": role, "parts": [{"text": msg["text"]}]})
+        
+    messages.append({"role": "user", "parts": [{"text": prompt_final}]})
+
+    response_stream = client.models.generate_content_stream(
         model='gemini-3.1-flash-lite-preview',
-        contents=prompt_final
+        contents=messages
     )
     
-    return {
-        "text": final_response.text,
+    for chunk in response_stream:
+        if chunk.text:
+            yield f'data: {{"text": {json.dumps(chunk.text)}}}\n\n'
+        if chunk.usage_metadata:
+            total_tokens += chunk.usage_metadata.total_token_count
+            
+    final_payload = {
         "sql": sql_query,
         "results": {"columns": columns, "rows": results[:10] if isinstance(results, list) else []},
-        "highlight_nodes": highlight_nodes
+        "highlight_nodes": highlight_nodes,
+        "usage": {"total_tokens": total_tokens}
     }
+    yield f'data: {json.dumps(final_payload)}\n\n'
