@@ -288,11 +288,14 @@ export default function App() {
                       {nodes.map(node => {
                         const isSelected = selectedNodeId === node.id;
                         const isHighlighted = highlightedNodes.includes(node.id);
+                        const isAnyNodeHighlighted = highlightedNodes.length > 0;
+                        const isDimmed = isAnyNodeHighlighted && !isHighlighted;
+                        
                         const theme = themeMap[node.theme] || themeMap['primary'];
                         return (
                           <div
                             key={node.id}
-                            className={`absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer ${isSelected || isHighlighted ? 'z-20' : 'z-10 hover:z-20'} ${draggingNodeId === node.id ? '' : 'transition-all duration-300'}`}
+                            className={`absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer ${isSelected || isHighlighted ? 'z-20' : 'z-10 hover:z-20'} ${draggingNodeId === node.id ? '' : 'transition-all duration-300'} ${isDimmed ? 'grayscale opacity-60' : ''}`}
                             style={{ left: node.x, top: node.y }}
                             onClick={(e) => {
                               e.stopPropagation();
