@@ -44,11 +44,34 @@ If irrelevant, respond ONLY with "REJECT".
             "results": {"columns": [], "rows": []}
         }
 
+    highlight_nodes = []
     try:
         cur.execute(sql_query)
         if cur.description:
             columns = [description[0] for description in cur.description]
             results = cur.fetchall()
+            
+            # Fast heuristic extraction for node highlighting
+            for i, col in enumerate(columns):
+                c = col.lower()
+                prefix = ""
+                if "salesorder" in c or "salesdocument" in c: prefix = "ORDER_"
+                elif "customer" in c or "partner" in c or "soldto" in c: prefix = "CUST_"
+                elif "material" in c or "product" in c: prefix = "PROD_"
+                elif "delivery" in c: prefix = "DEL_"
+                elif "billing" in c or "invoice" in c: prefix = "INV_"
+                elif "clearing" in c or "payment" in c: prefix = "PAY_"
+                elif "accounting" in c or "journal" in c: prefix = "JE_"
+                else:
+                    continue
+                
+                if prefix:
+                    for r in results:
+                        val = r[i]
+                        if val and str(val).strip():
+                            highlight_nodes.append(f"{prefix}{val}")
+                            
+            highlight_nodes = list(set(highlight_nodes))  # Deduplicate
         else:
             columns = []
             results = "Query executed successfully with no returned rows."
@@ -74,5 +97,6 @@ Formulate a concise, insightful natural language response answering the user's q
     return {
         "text": final_response.text,
         "sql": sql_query,
-        "results": {"columns": columns, "rows": results[:10] if isinstance(results, list) else []}
+        "results": {"columns": columns, "rows": results[:10] if isinstance(results, list) else []},
+        "highlight_nodes": highlight_nodes
     }

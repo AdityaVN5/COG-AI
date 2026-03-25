@@ -41,11 +41,12 @@ export default function App() {
   const [nodes, setNodes] = useState<NodeData[]>([]);
   const [initialNodes, setInitialNodes] = useState<NodeData[]>([]);
   const [edges, setEdges] = useState<EdgeData[]>([]);
-  const [messages, setMessages] = useState<{role: string, text: string, sql?: string, results?: any}[]>([
+  const [messages, setMessages] = useState<{role: string, text: string, sql?: string, results?: any, highlight_nodes?: string[]}[]>([
     { role: 'ai', text: "Hello! I've indexed your sap-o2c-data graph. You can ask about relationships, anomalies, or summaries across your entities." }
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [highlightedNodes, setHighlightedNodes] = useState<string[]>([]);
   const transformWrapperRef = useRef<any>(null);
 
   // Dragging State
@@ -78,7 +79,12 @@ export default function App() {
         body: JSON.stringify({ query: userMsg.text })
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { role: 'ai', text: data.text, sql: data.sql, results: data.results }]);
+      setMessages(prev => [...prev, { role: 'ai', text: data.text, sql: data.sql, results: data.results, highlight_nodes: data.highlight_nodes }]);
+      if (data.highlight_nodes && Array.isArray(data.highlight_nodes)) {
+        setHighlightedNodes(data.highlight_nodes);
+      } else {
+        setHighlightedNodes([]);
+      }
     } catch (err) {
       setMessages(prev => [...prev, { role: 'ai', text: "Error connecting to the analytical engine." }]);
     } finally {
@@ -281,11 +287,12 @@ export default function App() {
                       {/* Nodes */}
                       {nodes.map(node => {
                         const isSelected = selectedNodeId === node.id;
+                        const isHighlighted = highlightedNodes.includes(node.id);
                         const theme = themeMap[node.theme] || themeMap['primary'];
                         return (
                           <div
                             key={node.id}
-                            className={`absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer ${isSelected ? 'z-20' : 'z-10 hover:z-20'} ${draggingNodeId === node.id ? '' : 'transition-all duration-300'}`}
+                            className={`absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer ${isSelected || isHighlighted ? 'z-20' : 'z-10 hover:z-20'} ${draggingNodeId === node.id ? '' : 'transition-all duration-300'}`}
                             style={{ left: node.x, top: node.y }}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -293,8 +300,8 @@ export default function App() {
                             }}
                             onPointerDown={(e) => handleNodePointerDown(e, node.id)}
                           >
-                            <div className={`w-16 h-16 rounded-full flex items-center justify-center relative transition-all duration-300 ${isSelected ? theme.outerSelected : theme.outer}`}>
-                              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white transition-all duration-300 ${theme.inner} ${isSelected ? theme.shadow : 'shadow-md'}`}>
+                            <div className={`w-16 h-16 rounded-full flex items-center justify-center relative transition-all duration-300 ${isSelected ? theme.outerSelected : theme.outer} ${isHighlighted ? 'animate-pulse ring-4 ring-primary ring-offset-2 ring-offset-surface-container-lowest' : ''}`}>
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white transition-all duration-300 ${theme.inner} ${isSelected || isHighlighted ? theme.shadow : 'shadow-md'} ${isHighlighted ? 'scale-110' : ''}`}>
                                 <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>{node.icon}</span>
                               </div>
                             </div>
