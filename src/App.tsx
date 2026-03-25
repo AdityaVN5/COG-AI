@@ -38,6 +38,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('hub');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
+  const generateId = () => `chat_${new Date().toISOString().replace(/[:.]/g, '-')}`;
+  const [chatId, setChatId] = useState<string>(generateId());
+
   const [nodes, setNodes] = useState<NodeData[]>([]);
   const [initialNodes, setInitialNodes] = useState<NodeData[]>([]);
   const [edges, setEdges] = useState<EdgeData[]>([]);
@@ -90,6 +93,52 @@ export default function App() {
     } finally {
       setIsChatLoading(false);
     }
+  };
+
+  const handleExportChat = () => {
+    let md = `# Conversation Export: ${chatId}\n\n`;
+    messages.forEach(m => {
+      const role = m.role === 'user' ? 'User' : 'COG AI';
+      md += `### ${role}\n${m.text}\n\n`;
+      if (m.sql) md += `**SQL:**\n\`\`\`sql\n${m.sql}\n\`\`\`\n\n`;
+      if (m.highlight_nodes) md += `**Highlighted Nodes:** ${m.highlight_nodes.join(', ')}\n\n`;
+    });
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${chatId}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleNewChat = async () => {
+    if (messages.length > 1) {
+      await fetch('http://localhost:8000/api/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: chatId, messages })
+      });
+    }
+    setChatId(generateId());
+    setMessages([{ role: 'ai', text: "Hello! I've indexed your sap-o2c-data graph. You can ask about relationships, anomalies, or summaries across your entities." }]);
+    setHighlightedNodes([]);
+  };
+
+  const loadConversation = async (id: string) => {
+    try {
+      const res = await fetch(`http://localhost:8000/api/history/${id}`);
+      if(res.ok) {
+        const data = await res.json();
+        if (data.messages && data.messages.length > 0) {
+          setChatId(id);
+          setMessages(data.messages);
+          setHighlightedNodes(data.messages[data.messages.length-1]?.highlight_nodes || []);
+          setActiveTab('hub');
+          setIsRightSidebarOpen(true);
+        }
+      }
+    } catch(e) {}
   };
 
   const handleNodePointerDown = (e: React.PointerEvent, nodeId: string) => {
@@ -358,7 +407,7 @@ export default function App() {
           </div>
 
           {activeTab === 'database' && <DatabaseView />}
-          {activeTab === 'history' && <HistoryView />}
+          {activeTab === 'history' && <HistoryView onSelect={loadConversation} />}
           {activeTab === 'settings' && <SettingsView isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />}
           {activeTab === 'help' && <HelpView />}
 
@@ -415,7 +464,26 @@ export default function App() {
         <aside className={`${isRightSidebarOpen ? 'w-[30%]' : 'w-0 md:w-16'} bg-surface-container-low/50 border-l border-outline-variant/15 flex flex-col relative transition-all duration-300 overflow-hidden shrink-0`}>
           {/* Chat Header with Collapse */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10 bg-surface-container-low min-w-[250px]">
-            <span className={`text-xs font-bold text-on-surface-variant uppercase tracking-widest transition-opacity duration-300 ${isRightSidebarOpen ? 'opacity-100' : 'opacity-0'}`}>Conversation</span>
+            <div className="flex flex-col">
+              <span className={`text-xs font-bold text-on-surface-variant uppercase tracking-widest transition-opacity duration-300 ${isRightSidebarOpen ? 'opacity-100' : 'opacity-0'}`}>Conversation</span>
+              <span className={`text-[10px] font-mono text-on-surface-variant/70 transition-opacity duration-300 ${isRightSidebarOpen ? 'opacity-100' : 'opacity-0'}`}>{chatId}</span>
+            </div>
+            <div className="flex items-center gap-1 absolute right-12">
+              <button 
+                onClick={handleExportChat}
+                className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant transition-colors"
+                title="Export Chat as Markdown"
+              >
+                <span className="material-symbols-outlined text-[18px]">download</span>
+              </button>
+              <button 
+                onClick={handleNewChat}
+                className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant transition-colors"
+                title="New Chat (Saves current conversation)"
+              >
+                <span className="material-symbols-outlined text-[18px]">add</span>
+              </button>
+            </div>
             <button
               onClick={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
               className="p-1 rounded hover:bg-surface-container-high text-on-surface-variant transition-colors absolute right-4"
