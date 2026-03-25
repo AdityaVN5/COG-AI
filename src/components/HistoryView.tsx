@@ -97,15 +97,6 @@ export default function HistoryView({ onSelect }: HistoryViewProps) {
                   </button>
                 </div>
                 
-                <div className="flex flex-col gap-1 pt-2">
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest opacity-50">Token usage</span>
-                        <div className="px-2 py-0.5 bg-secondary-container/30 rounded text-[10px] font-mono font-bold text-secondary">
-                            {item.totalTokens?.toLocaleString() || 0}
-                        </div>
-                    </div>
-                </div>
-
                 <div className="flex items-center justify-between pt-2 border-t border-outline-variant/10 mt-1">
                     <span className="text-[10px] font-bold text-primary uppercase tracking-widest group-hover:translate-x-1 transition-transform flex items-center gap-1">
                         Resume <span className="material-symbols-outlined text-xs">arrow_forward</span>
