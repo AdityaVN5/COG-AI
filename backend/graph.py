@@ -367,6 +367,19 @@ def build_graph(db_path):
     # Calculate physics layout
     pos = nx.spring_layout(G, seed=42, k=0.3)
     
+    # Community Detection (Clustering)
+    undirected_G = G.to_undirected()
+    try:
+        from networkx.algorithms.community import greedy_modularity_communities
+        communities = greedy_modularity_communities(undirected_G)
+        cluster_map = {}
+        for i, comm in enumerate(communities):
+            for node in comm:
+                cluster_map[node] = i
+    except Exception as e:
+        print("Community detection failed:", e)
+        cluster_map = {}
+    
     nodes_out = []
     edges_out = []
     
@@ -375,6 +388,15 @@ def build_graph(db_path):
         # Map logical coordinates to graph bounds in frontend (1500, 1500 is center)
         node_info["x"] = float(pos[n][0]) * 1000 + 1500
         node_info["y"] = float(pos[n][1]) * 1000 + 1500
+        
+        c_id = cluster_map.get(n, -1)
+        node_info["data"]["sections"].append({
+            "title": "NETWORK INFO",
+            "fields": [
+                {"label": "Cluster ID", "value": f"Cluster {c_id}" if c_id != -1 else "Unassigned"}
+            ]
+        })
+        
         nodes_out.append(node_info)
         
     for u, v, data in G.edges(data=True):
