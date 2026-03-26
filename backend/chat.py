@@ -21,16 +21,26 @@ def query_chat_stream(user_query, history, db_path):
         columns = [row[1] for row in cur.fetchall()]
         schema_str += f"Table {t}: {', '.join(columns)}\n"
 
+    # Build a conversation summary for the SQL generation prompt
+    history_context = ""
+    if history:
+        history_context = "\n### Conversation History (for context on follow-up questions):\n"
+        for msg in history[-6:]:
+            role_label = "User" if msg["role"] == "user" else "Assistant"
+            history_context += f"{role_label}: {msg['text']}\n"
+        history_context += "\n"
+
     prompt_sql = f"""You are a strict data assistant. Your job is to convert user queries into SQLite queries based on the provided schema.
 
 ### Guardrails
 You MUST strictly evaluate if the user's query is related to the provided dataset, business data, or SAP O2C domain. 
 If the user asks a general knowledge question, makes a creative writing request, or asks about an irrelevant topic, you MUST respond with EXACTLY the word "REJECT" and nothing else.
-
+{history_context}
 Schema:
 {schema_str}
 
 The user asks: "{user_query}"
+Note: This may be a follow-up question. Use the conversation history above to resolve any references like "this order", "that customer", etc.
 If relevant, respond ONLY with a valid SQLite query, no markdown formatting, no explanations. Do not include ```sql tags.
 If irrelevant, respond ONLY with "REJECT".
 """
@@ -92,8 +102,8 @@ The database returned these results: {results}
 Formulate a concise, insightful natural language response answering the user's question. If the result is an error, just say you couldn't find the answer. Do not show the SQL query unless asked explicitly. Format it nicely.
 """
     messages = []
-    # Sliding window: last 4 messages to save tokens
-    for msg in history[-4:]:
+    # Sliding window: last 6 messages = 3 full user+AI exchanges
+    for msg in history[-6:]:
         role = "user" if msg["role"] == "user" else "model"
         messages.append({"role": role, "parts": [{"text": msg["text"]}]})
         

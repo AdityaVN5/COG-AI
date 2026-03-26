@@ -18,33 +18,36 @@ export default function HistoryView({ onSelect }: HistoryViewProps) {
 
   const fetchHistory = () => {
     setIsLoading(true);
-    fetch(`${API_URL}/api/history`)
-      .then(res => res.json())
-      .then(data => {
-        setHistoryList(data);
-        setIsLoading(false);
-      })
-      .catch(err => {
-        console.error(err);
-        setIsLoading(false);
+    try {
+      // Primary: read from localStorage
+      const idx: string[] = JSON.parse(localStorage.getItem('cog_history_index') || '[]');
+      const items: HistoryItem[] = idx.map(id => {
+        const meta = JSON.parse(localStorage.getItem(`cog_history_${id}`) || '{}');
+        return { id, filename: `${id}.md`, totalTokens: meta.totalTokens || 0 };
       });
+      setHistoryList(items);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
     fetchHistory();
   }, []);
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
+  const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (!window.confirm("Are you sure you want to delete this conversation?")) return;
-    
     try {
-      const res = await fetch(`${API_URL}/api/history/${id}`, {
-        method: 'DELETE'
-      });
-      if (res.ok) {
-        fetchHistory();
-      }
+      // Remove from localStorage
+      localStorage.removeItem(`cog_history_${id}`);
+      const idx: string[] = JSON.parse(localStorage.getItem('cog_history_index') || '[]');
+      localStorage.setItem('cog_history_index', JSON.stringify(idx.filter(i => i !== id)));
+      fetchHistory();
+      // Also try backend delete (for local dev)
+      fetch(`${API_URL}/api/history/${id}`, { method: 'DELETE' }).catch(() => {});
     } catch (err) {
       console.error("Failed to delete history item", err);
     }

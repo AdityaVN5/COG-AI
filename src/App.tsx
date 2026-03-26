@@ -86,7 +86,11 @@ export default function App() {
     setIsChatLoading(true);
 
     try {
-      const historyPayload = currentHistory.map(m => ({ role: m.role, text: m.text }));
+      // Build a clean history: only user+ai pairs (exclude initial welcome AI message)
+      // Filter to only include messages from first user message onwards, then take last 6
+      const firstUserIdx = currentHistory.findIndex(m => m.role === 'user');
+      const cleanHistory = firstUserIdx >= 0 ? currentHistory.slice(firstUserIdx) : [];
+      const historyPayload = cleanHistory.slice(-6).map(m => ({ role: m.role, text: m.text }));
       
       const res = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
@@ -155,6 +159,27 @@ export default function App() {
           }
         }
       }
+      // Auto-save to localStorage after every completed AI response
+      setMessages(prev => {
+        const finalMsgs = prev;
+        const firstUser = finalMsgs.findIndex(m => m.role === 'user');
+        if (firstUser >= 0) {
+          const meta = {
+            messages: finalMsgs,
+            totalTokens: 0 // updated separately
+          };
+          try {
+            // Get existing index
+            const idx: string[] = JSON.parse(localStorage.getItem('cog_history_index') || '[]');
+            if (!idx.includes(chatId)) {
+              idx.unshift(chatId);
+              localStorage.setItem('cog_history_index', JSON.stringify(idx.slice(0, 50)));
+            }
+            localStorage.setItem(`cog_history_${chatId}`, JSON.stringify(meta));
+          } catch (e) { console.warn('localStorage save failed', e); }
+        }
+        return finalMsgs;
+      });
     } catch (err) {
       console.error(err);
       setMessages(prev => {
@@ -190,11 +215,22 @@ export default function App() {
 
   const handleNewChat = async () => {
     if (messages.length > 1) {
-      await fetch(`${API_URL}/api/history`, {
+      // Save to localStorage
+      const meta = { messages, totalTokens };
+      try {
+        const idx: string[] = JSON.parse(localStorage.getItem('cog_history_index') || '[]');
+        if (!idx.includes(chatId)) {
+          idx.unshift(chatId);
+          localStorage.setItem('cog_history_index', JSON.stringify(idx.slice(0, 50)));
+        }
+        localStorage.setItem(`cog_history_${chatId}`, JSON.stringify(meta));
+      } catch (e) { console.warn('localStorage save failed', e); }
+      // Also try backend save (for local dev)
+      fetch(`${API_URL}/api/history`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: chatId, messages, totalTokens })
-      });
+      }).catch(() => {});
     }
     setChatId(generateId());
     setMessages([{ role: 'ai', text: "Hello! I've indexed your sap-o2c-data graph. You can ask about relationships, anomalies, or summaries across your entities." }]);
@@ -204,19 +240,32 @@ export default function App() {
 
   const loadConversation = async (id: string) => {
     try {
+      // Try localStorage first
+      const stored = localStorage.getItem(`cog_history_${id}`);
+      if (stored) {
+        const data = JSON.parse(stored);
+        setChatId(id);
+        setMessages(data.messages || []);
+        setTotalTokens(data.totalTokens || 0);
+        setHighlightedNodes(data.messages?.[data.messages.length - 1]?.highlight_nodes || []);
+        setActiveTab('hub');
+        setIsRightSidebarOpen(true);
+        return;
+      }
+      // Fallback: backend (local dev)
       const res = await fetch(`${API_URL}/api/history/${id}`);
-      if(res.ok) {
+      if (res.ok) {
         const data = await res.json();
         if (data.messages && data.messages.length > 0) {
           setChatId(id);
           setMessages(data.messages);
           setTotalTokens(data.totalTokens || 0);
-          setHighlightedNodes(data.messages[data.messages.length-1]?.highlight_nodes || []);
+          setHighlightedNodes(data.messages[data.messages.length - 1]?.highlight_nodes || []);
           setActiveTab('hub');
           setIsRightSidebarOpen(true);
         }
       }
-    } catch(e) {}
+    } catch (e) { console.error('Failed to load conversation', e); }
   };
 
   const handleNodePointerDown = (e: React.PointerEvent, nodeId: string) => {

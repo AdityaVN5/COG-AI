@@ -3,7 +3,7 @@ import sqlite3
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from graph import build_graph
+from .graph import build_graph
 
 app = FastAPI()
 
@@ -51,7 +51,7 @@ def get_graph(refresh: bool = False):
 @app.post("/api/chat")
 def chat_endpoint(request: ChatRequest):
     try:
-        from chat import query_chat_stream
+        from .chat import query_chat_stream
         history_dicts = [{"role": m.role, "text": m.text} for m in request.history]
         return StreamingResponse(query_chat_stream(request.query, history_dicts, DB_PATH), media_type="text/event-stream")
     except Exception as e:
