@@ -8,6 +8,7 @@ import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import ReactMarkdown from 'react-markdown';
 import DatabaseView from './components/DatabaseView';
 import HistoryView from './components/HistoryView';
+import AnalysisView from './components/AnalysisView';
 import SettingsView from './components/SettingsView';
 import HelpView from './components/HelpView';
 
@@ -60,7 +61,7 @@ export default function App() {
   const lastPointerPos = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/graph')
+    fetch('http://127.0.0.1:8099/api/graph')
 
       .then(res => res.json())
       .then(data => {
@@ -85,7 +86,7 @@ export default function App() {
     try {
       const historyPayload = currentHistory.map(m => ({ role: m.role, text: m.text }));
       
-      const res = await fetch('http://localhost:8000/api/chat', {
+      const res = await fetch('http://127.0.0.1:8099/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: userMsg.text, history: historyPayload })
@@ -187,7 +188,7 @@ export default function App() {
 
   const handleNewChat = async () => {
     if (messages.length > 1) {
-      await fetch('http://localhost:8000/api/history', {
+      await fetch('http://127.0.0.1:8099/api/history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: chatId, messages, totalTokens })
@@ -201,7 +202,7 @@ export default function App() {
 
   const loadConversation = async (id: string) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/history/${id}`);
+      const res = await fetch(`http://127.0.0.1:8099/api/history/${id}`);
       if(res.ok) {
         const data = await res.json();
         if (data.messages && data.messages.length > 0) {
@@ -281,6 +282,7 @@ export default function App() {
   const leftTabs = [
     { id: 'hub', icon: 'hub' },
     { id: 'history', icon: 'history' },
+    { id: 'analysis', icon: 'analytics' },
   ];
 
   return (
@@ -507,6 +509,7 @@ export default function App() {
 
           {activeTab === 'database' && <DatabaseView />}
           {activeTab === 'history' && <HistoryView onSelect={loadConversation} />}
+          {activeTab === 'analysis' && <AnalysisView />}
           {activeTab === 'settings' && <SettingsView isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />}
           {activeTab === 'help' && <HelpView />}
 

@@ -16,7 +16,7 @@ export default function HistoryView({ onSelect }: HistoryViewProps) {
 
   const fetchHistory = () => {
     setIsLoading(true);
-    fetch('http://localhost:8000/api/history')
+    fetch('http://127.0.0.1:8099/api/history')
       .then(res => res.json())
       .then(data => {
         setHistoryList(data);
@@ -37,7 +37,7 @@ export default function HistoryView({ onSelect }: HistoryViewProps) {
     if (!window.confirm("Are you sure you want to delete this conversation?")) return;
     
     try {
-      const res = await fetch(`http://localhost:8000/api/history/${id}`, {
+      const res = await fetch(`http://127.0.0.1:8099/api/history/${id}`, {
         method: 'DELETE'
       });
       if (res.ok) {

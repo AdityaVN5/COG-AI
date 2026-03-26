@@ -1,4 +1,5 @@
 import os
+import sqlite3
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -97,6 +98,60 @@ def delete_history(conv_id: str):
         os.remove(history_file)
         return {"status": "deleted"}
     raise HTTPException(status_code=404, detail="Conversation not found")
+
+@app.get("/api/analysis/broken-flows")
+def get_broken_flows():
+    try:
+        db_path = os.path.join(BASE_DIR, 'data.db')
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        
+        # 1. Stuck Orders (Orders with no delivery)
+        # We join on outbound_delivery_items which references the sales order
+        cur.execute("""
+            SELECT h.salesOrder, h.soldToParty, h.totalNetAmount, h.transactionCurrency, h.overallDeliveryStatus 
+            FROM sales_order_headers h
+            LEFT JOIN outbound_delivery_items d ON h.salesOrder = d.referenceSdDocument
+            WHERE d.deliveryDocument IS NULL
+            LIMIT 20
+        """)
+        stuck_orders = [{"id": r[0], "customer": r[1], "amount": r[2], "currency": r[3], "status": r[4]} for r in cur.fetchall()]
+        
+        # 2. Unbilled Deliveries (Deliveries with no billing)
+        # We join on billing_document_items which references the delivery document
+        cur.execute("""
+            SELECT d.deliveryDocument, h.soldToParty, d.creationDate, d.overallProofOfDeliveryStatus
+            FROM outbound_delivery_headers d
+            JOIN outbound_delivery_items di ON d.deliveryDocument = di.deliveryDocument
+            JOIN sales_order_headers h ON di.referenceSdDocument = h.salesOrder
+            LEFT JOIN billing_document_items b ON d.deliveryDocument = b.referenceSdDocument
+            WHERE b.billingDocument IS NULL
+            GROUP BY d.deliveryDocument
+            LIMIT 20
+        """)
+        unbilled_deliveries = [{"id": r[0], "customer": r[1], "date": r[2], "status": r[3]} for r in cur.fetchall()]
+        
+        # 3. Unpaid Invoices (Billed but not cleared)
+        # We join billing headers to journal entries via accountingDocument
+        cur.execute("""
+            SELECT b.billingDocument, b.soldToParty, b.totalNetAmount, b.transactionCurrency, b.accountingDocument
+            FROM billing_document_headers b
+            LEFT JOIN journal_entry_items_accounts_receivable j ON b.accountingDocument = j.accountingDocument
+            WHERE b.billingDocumentIsCancelled = 0
+            AND (j.clearingAccountingDocument IS NULL OR j.clearingAccountingDocument = '')
+            LIMIT 20
+        """)
+        unpaid_invoices = [{"id": r[0], "customer": r[1], "amount": r[2], "currency": r[3], "accDoc": r[4]} for r in cur.fetchall()]
+        
+        conn.close()
+        return {
+            "stuck_orders": stuck_orders,
+            "unbilled_deliveries": unbilled_deliveries,
+            "unpaid_invoices": unpaid_invoices
+        }
+    except Exception as e:
+        print(f"Error in broken-flows detection: {e}")
+        return {"stuck_orders": [], "unbilled_deliveries": [], "unpaid_invoices": [], "error": str(e)}
 
 @app.get("/api/history")
 def list_history():
