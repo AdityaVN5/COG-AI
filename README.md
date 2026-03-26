@@ -88,4 +88,4 @@ The following table outlines the current development priorities for enhancing th
 ---
 
 ## Acknowledgments
-Developed as part of the Contextual Intelligence research initiative. Powered by Google Gemini.
+Developed as part of the Contextual Intelligence research initiative.
