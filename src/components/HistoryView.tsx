@@ -10,13 +10,15 @@ interface HistoryViewProps {
   onSelect: (id: string) => void;
 }
 
+const API_URL = (process.env.VITE_API_URL || 'http://127.0.0.1:8080').replace(/\/$/, "");
+
 export default function HistoryView({ onSelect }: HistoryViewProps) {
   const [historyList, setHistoryList] = useState<HistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchHistory = () => {
     setIsLoading(true);
-    fetch('http://127.0.0.1:8080/api/history')
+    fetch(`${API_URL}/api/history`)
       .then(res => res.json())
       .then(data => {
         setHistoryList(data);
@@ -37,7 +39,7 @@ export default function HistoryView({ onSelect }: HistoryViewProps) {
     if (!window.confirm("Are you sure you want to delete this conversation?")) return;
     
     try {
-      const res = await fetch(`http://127.0.0.1:8080/api/history/${id}`, {
+      const res = await fetch(`${API_URL}/api/history/${id}`, {
         method: 'DELETE'
       });
       if (res.ok) {

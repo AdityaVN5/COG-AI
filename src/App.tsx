@@ -33,6 +33,8 @@ const themeMap: Record<string, { outer: string, outerSelected: string, inner: st
   primary: { outer: 'bg-primary/20', outerSelected: 'bg-primary/40 scale-125', inner: 'bg-primary', shadow: 'shadow-[0_0_20px_rgba(78,69,228,0.6)]' },
 };
 
+const API_URL = (process.env.VITE_API_URL || 'http://127.0.0.1:8080').replace(/\/$/, "");
+
 export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
@@ -61,7 +63,7 @@ export default function App() {
   const lastPointerPos = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8080/api/graph')
+    fetch(`${API_URL}/api/graph`)
 
       .then(res => res.json())
       .then(data => {
@@ -86,7 +88,7 @@ export default function App() {
     try {
       const historyPayload = currentHistory.map(m => ({ role: m.role, text: m.text }));
       
-      const res = await fetch('http://127.0.0.1:8080/api/chat', {
+      const res = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: userMsg.text, history: historyPayload })
@@ -188,7 +190,7 @@ export default function App() {
 
   const handleNewChat = async () => {
     if (messages.length > 1) {
-      await fetch('http://127.0.0.1:8080/api/history', {
+      await fetch(`${API_URL}/api/history`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: chatId, messages, totalTokens })
@@ -202,7 +204,7 @@ export default function App() {
 
   const loadConversation = async (id: string) => {
     try {
-      const res = await fetch(`http://127.0.0.1:8080/api/history/${id}`);
+      const res = await fetch(`${API_URL}/api/history/${id}`);
       if(res.ok) {
         const data = await res.json();
         if (data.messages && data.messages.length > 0) {

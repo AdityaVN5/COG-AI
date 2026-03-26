@@ -6,12 +6,14 @@ interface BrokenFlows {
   unpaid_invoices: any[];
 }
 
+const API_URL = (process.env.VITE_API_URL || 'http://127.0.0.1:8080').replace(/\/$/, "");
+
 export default function AnalysisView() {
   const [data, setData] = useState<BrokenFlows | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8080/api/analysis/broken-flows')
+    fetch(`${API_URL}/api/analysis/broken-flows`)
       .then(res => res.json())
       .then(data => {
         setData(data);
