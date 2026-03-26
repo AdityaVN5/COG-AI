@@ -1,0 +1,13 @@
+.git
+.gitignore
+node_modules
+dist
+backend/venv
+backend/__pycache__
+backend/history
+backend/data.db
+.env
+backend/.env
+README.md
+C:\Users\madiv\.gemini\antigravity\brain
+C:\Users\madiv\.gemini\antigravity\logs
