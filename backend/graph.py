@@ -221,6 +221,38 @@ def build_graph(db_path):
                         sec["fields"] = [f for f in sec["fields"] if f.get("value")]
                         
                     add_node_data(deliv_id, "logistics", "local_shipping", f"Delivery {deliv}", "Logistics", d_sections)
+
+                    # Add Plant nodes linked to this delivery via delivery items
+                    plants_seen = set()
+                    for d_pl, _, _, _, _, _ in d_items:
+                        if not d_pl or d_pl in plants_seen:
+                            continue
+                        plants_seen.add(d_pl)
+                        plant_node_id = f"PLANT_{d_pl}"
+                        if not G.has_node(plant_node_id):
+                            cur.execute("""
+                                SELECT plant, plant, mrpType, availabilityCheckType,
+                                       profitCenter, countryOfOrigin
+                                FROM product_plants WHERE plant=? LIMIT 1
+                            """, (d_pl,))
+                            pl_data = cur.fetchone()
+                            pl_sections = [
+                                {"title": "LOCATION", "fields": [
+                                    {"label": "Plant ID", "value": d_pl},
+                                ]},
+                                {"title": "PLANNING", "fields": [
+                                    {"label": "MRP Type", "value": pl_data[2] if pl_data else ""},
+                                    {"label": "Availability Check", "value": pl_data[3] if pl_data else ""},
+                                    {"label": "Profit Center", "value": pl_data[4] if pl_data else ""},
+                                    {"label": "Country of Origin", "value": pl_data[5] if pl_data else ""},
+                                ]}
+                            ]
+                            for sec in pl_sections:
+                                sec["fields"] = [f for f in sec["fields"] if str(f.get("value", "")).strip()]
+                            add_node_data(plant_node_id, "plant", "factory", f"Plant {d_pl}", "Plant", pl_sections)
+                        if G.has_node(plant_node_id):
+                            G.add_edge(deliv_id, plant_node_id, dashed=True)
+
             if G.has_node(deliv_id):
                 G.add_edge(order_id, deliv_id, dashed=False)
             

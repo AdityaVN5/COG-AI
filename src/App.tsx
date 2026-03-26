@@ -30,6 +30,7 @@ const themeMap: Record<string, { outer: string, outerSelected: string, inner: st
   billing: { outer: 'bg-rose-500/20', outerSelected: 'bg-rose-500/40 scale-125', inner: 'bg-rose-600', shadow: 'shadow-[0_0_20px_rgba(244,63,94,0.6)]' },
   journal: { outer: 'bg-cyan-500/20', outerSelected: 'bg-cyan-500/40 scale-125', inner: 'bg-cyan-600', shadow: 'shadow-[0_0_20px_rgba(6,182,212,0.6)]' },
   payment: { outer: 'bg-teal-500/20', outerSelected: 'bg-teal-500/40 scale-125', inner: 'bg-teal-600', shadow: 'shadow-[0_0_20px_rgba(20,184,166,0.6)]' },
+  plant: { outer: 'bg-orange-500/20', outerSelected: 'bg-orange-500/40 scale-125', inner: 'bg-orange-600', shadow: 'shadow-[0_0_20px_rgba(249,115,22,0.6)]' },
   primary: { outer: 'bg-primary/20', outerSelected: 'bg-primary/40 scale-125', inner: 'bg-primary', shadow: 'shadow-[0_0_20px_rgba(78,69,228,0.6)]' },
 };
 
@@ -63,7 +64,7 @@ export default function App() {
   const lastPointerPos = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
-    fetch(`${API_URL}/api/graph`)
+    fetch(`${API_URL}/api/graph?refresh=true`)
 
       .then(res => res.json())
       .then(data => {

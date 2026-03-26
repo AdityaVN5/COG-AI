@@ -141,10 +141,14 @@ If irrelevant, respond ONLY with "REJECT".
         
     conn.close()
 
+    # Cap results before sending to LLM to prevent context window overflow
+    results_preview = results[:50] if isinstance(results, list) else results
+    results_capped = len(results) > 50 if isinstance(results, list) else False
+
     prompt_final = f"""You are a helpful data analyst for the COG AI context graph system.
 The user asked: "{user_query}"
 We ran this SQL query: {sql_query}
-The database returned these results: {results}
+The database returned these results{' (showing first 50 of ' + str(len(results)) + ' rows)' if results_capped else ''}: {results_preview}
 (Columns: {columns})
 
 Formulate a concise, insightful natural language response answering the user's question. If the result is an error, just say you couldn't find the answer. Do not show the SQL query unless asked explicitly. Format it nicely.
