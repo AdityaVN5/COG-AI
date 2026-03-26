@@ -4,3 +4,4 @@ networkx
 google-genai
 pydantic
 python-dotenv
+pandas
