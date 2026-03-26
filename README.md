@@ -6,6 +6,7 @@
 ![License](https://img.shields.io/badge/license-Apache--2.0-lightgrey)
 ![Engine](https://img.shields.io/badge/LLM-Gemini--Flash--Lite-purple)
 ![Stack](https://img.shields.io/badge/stack-FastAPI%20%2B%20React%20%2B%20SQLite-informational)
+[Demo Video](https://drive.google.com/file/d/1zde1es3stk8CeXkpibevwZjIcevbEuV5/view?usp=sharing)
 
 > **COG AI** is a full-stack, AI-powered context graph system for interactive exploration and natural language analysis of complex **SAP Order-to-Cash (O2C)** business data.
 
