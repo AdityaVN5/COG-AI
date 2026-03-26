@@ -69,9 +69,6 @@ export default function AnalysisView() {
                 <div className="text-[11px] text-on-surface-variant mb-3">Customer: {order.customer}</div>
                 <div className="flex justify-between items-center text-xs font-bold">
                   <span>{order.amount.toLocaleString()} {order.currency}</span>
-                  <button className="text-primary hover:underline flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    View <span className="material-symbols-outlined text-[10px]">open_in_new</span>
-                  </button>
                 </div>
               </div>
             ))}
@@ -99,9 +96,6 @@ export default function AnalysisView() {
                 <div className="text-[11px] text-on-surface-variant mb-3">Customer: {delivery.customer}</div>
                 <div className="flex justify-between items-center text-xs font-bold font-mono">
                   <span>Date: {delivery.date}</span>
-                  <button className="text-primary hover:underline flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    View <span className="material-symbols-outlined text-[10px]">open_in_new</span>
-                  </button>
                 </div>
               </div>
             ))}
@@ -130,9 +124,6 @@ export default function AnalysisView() {
                 <div className="text-[10px] text-on-surface-variant/70 mb-3 font-mono">AccDoc: {invoice.accDoc}</div>
                 <div className="flex justify-between items-center text-xs font-bold">
                   <span className="text-error">{invoice.amount.toLocaleString()} {invoice.currency}</span>
-                  <button className="text-primary hover:underline flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    View <span className="material-symbols-outlined text-[10px]">open_in_new</span>
-                  </button>
                 </div>
               </div>
             ))}
