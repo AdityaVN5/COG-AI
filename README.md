@@ -1,4 +1,4 @@
-# COG AI — Contextual Graph Intelligence
+# COG AI — COntextual Graph Intelligence
 
 ![Version](https://img.shields.io/badge/version-4.2.0-blue)
 ![Python](https://img.shields.io/badge/python-3.10%2B-green)
@@ -6,7 +6,8 @@
 ![License](https://img.shields.io/badge/license-Apache--2.0-lightgrey)
 ![Engine](https://img.shields.io/badge/LLM-Gemini--Flash--Lite-purple)
 ![Stack](https://img.shields.io/badge/stack-FastAPI%20%2B%20React%20%2B%20SQLite-informational)
-[Demo Video](https://drive.google.com/file/d/1zde1es3stk8CeXkpibevwZjIcevbEuV5/view?usp=sharing)
+
+[![Watch Demo Video](https://img.shields.io/badge/▶️-Watch_Demo_Video-red?style=for-the-badge)](https://drive.google.com/file/d/1zde1es3stk8CeXkpibevwZjIcevbEuV5/view)
 
 > **COG AI** is a full-stack, AI-powered context graph system for interactive exploration and natural language analysis of complex **SAP Order-to-Cash (O2C)** business data.
 
