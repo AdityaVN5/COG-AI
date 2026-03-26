@@ -3,7 +3,10 @@ import sqlite3
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from .graph import build_graph
+try:
+    from .graph import build_graph           # package mode: uvicorn backend.main:app
+except ImportError:
+    from graph import build_graph             # standalone mode: uvicorn main:app (Docker)
 
 app = FastAPI()
 
@@ -51,7 +54,10 @@ def get_graph(refresh: bool = False):
 @app.post("/api/chat")
 def chat_endpoint(request: ChatRequest):
     try:
-        from .chat import query_chat_stream
+        try:
+            from .chat import query_chat_stream
+        except ImportError:
+            from chat import query_chat_stream
         history_dicts = [{"role": m.role, "text": m.text} for m in request.history]
         return StreamingResponse(query_chat_stream(request.query, history_dicts, DB_PATH), media_type="text/event-stream")
     except Exception as e:
@@ -213,5 +219,4 @@ def get_history(conv_id: str):
 if __name__ == "__main__":
     import uvicorn
     # Use PORT environment variable if available (for Cloud Run), default to 8080
-    port = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
