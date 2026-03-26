@@ -1,5 +1,11 @@
+import os
 import sqlite3
 import networkx as nx
+
+# Maximum order roots to traverse. Downstream nodes (deliveries, invoices, etc.)
+# are capped separately by the graph-layer pruning below.
+# Surface the highest-value orders first so the most significant data always appears.
+NODE_CAP = int(os.environ.get("GRAPH_NODE_CAP", 200))
 
 def build_graph(db_path):
     conn = sqlite3.connect(db_path)
@@ -15,17 +21,23 @@ def build_graph(db_path):
             "data": {"type": n_type, "sections": sections}
         }
 
-    # Limit orders to keep graph rendering fast
+    # Fetch orders sorted by financial significance — no hard SQL LIMIT.
+    # The NODE_CAP is applied at the graph layer after traversal.
     cur.execute("""
         SELECT salesOrder, salesOrderType, createdByUser, creationDate, requestedDeliveryDate, pricingDate,
                totalNetAmount, transactionCurrency, customerPaymentTerms, incotermsClassification, incotermsLocation1,
                overallDeliveryStatus, overallOrdReltdBillgStatus, deliveryBlockReason, headerBillingBlockReason, soldToParty
-        FROM sales_order_headers 
-        LIMIT 20
+        FROM sales_order_headers
+        ORDER BY CAST(totalNetAmount AS REAL) DESC
     """)
     orders = cur.fetchall()
     
     for row in orders:
+        # Graph-layer node cap: stop adding new order roots once we hit the limit.
+        # Applied after the full downstream chain per order, so no order appears with partial edges.
+        if len(G.nodes) >= NODE_CAP:
+            print(f"Graph node cap ({NODE_CAP}) reached. Stopping traversal.")
+            break
         so, so_type, created_by, creation_date, req_delivery_date, pricing_date, net_amount, curr, payment_terms, incoterms_class, incoterms_loc, delivery_status, billing_status, delivery_block, billing_block, customer = row
         order_id = f"ORDER_{so}"
         

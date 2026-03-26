@@ -1,15 +1,56 @@
 import os
+import re
 import sqlite3
 import json
 from google import genai
 from dotenv import load_dotenv
 
+# Regex that matches any destructive SQL keyword as a standalone token.
+# Checked against the LLM-generated SQL (after parsing), not the raw user input.
+_WRITE_OPS = re.compile(
+    r'\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE|REPLACE|ATTACH|DETACH|PRAGMA)\b',
+    re.IGNORECASE
+)
+
+# Prompt injection patterns: phrases that attempt to override system instructions.
+_INJECTION_PATTERNS = re.compile(
+    r'(ignore\s+(previous|all|above|prior)\s+instructions?'
+    r'|forget\s+(everything|all|your\s+instructions?)'
+    r'|you\s+are\s+now\s+a\s+different'
+    r'|do\s+not\s+follow\s+(the\s+)?rules?'
+    r'|override\s+(the\s+)?system'
+    r'|drop\s+(table|database)'
+    r'|delete\s+(from|all)'
+    r')',
+    re.IGNORECASE
+)
+
 # Load .env from the backend directory explicitly
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 load_dotenv(dotenv_path)
 
+def _sanitize_query(user_query: str) -> str | None:
+    """
+    Returns None if the query contains prompt injection patterns.
+    Otherwise returns the query stripped of any embedded quotes/newlines
+    that could break out of the prompt template.
+    """
+    if _INJECTION_PATTERNS.search(user_query):
+        return None
+    # Neutralize embedded prompt-breaking characters
+    sanitized = user_query.replace('"', "'").replace('\n', ' ').replace('\r', '')
+    return sanitized.strip()[:2000]  # Hard cap on query length
+
 def query_chat_stream(user_query, history, db_path):
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+    # --- Prompt Injection Defence ---
+    safe_query = _sanitize_query(user_query)
+    if safe_query is None:
+        yield f'data: {{"text": "Your request contains patterns that are not permitted."}}\n\n'
+        yield f'data: {json.dumps({"sql": None, "results": {"columns": [], "rows": []}, "highlight_nodes": []})}\n\n'
+        return
+
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
@@ -53,6 +94,13 @@ If irrelevant, respond ONLY with "REJECT".
 
     if sql_query.upper() == "REJECT" or "REJECT" in sql_query.upper():
         yield f'data: {{"text": "This system is designed to answer questions related to the provided dataset only."}}\n\n'
+        yield f'data: {json.dumps({"sql": None, "results": {"columns": [], "rows": []}, "highlight_nodes": []})}\n\n'
+        return
+
+    # --- Write-Operation Blocklist ---
+    # Checked on the LLM-returned SQL, not on user input — cannot be bypassed via prompt injection.
+    if _WRITE_OPS.search(sql_query):
+        yield f'data: {{"text": "Only read operations are permitted. This query was blocked for safety."}}\n\n'
         yield f'data: {json.dumps({"sql": None, "results": {"columns": [], "rows": []}, "highlight_nodes": []})}\n\n'
         return
 

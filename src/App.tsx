@@ -597,9 +597,6 @@ export default function App() {
                    <div className="text-xs text-on-surface-variant italic">No detailed attributes available.</div>
                 )}
                 
-                <button className="w-full py-2.5 bg-primary text-on-primary text-xs font-semibold rounded-lg hover:bg-primary-dim transition-all mt-4 flex items-center justify-center gap-2 shadow-sm hover:shadow shrink-0">
-                  Deep Dive Analysis <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                </button>
               </div>
             </div>
           ) : (
