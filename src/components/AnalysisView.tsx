@@ -11,7 +11,7 @@ export default function AnalysisView() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8099/api/analysis/broken-flows')
+    fetch('http://127.0.0.1:8080/api/analysis/broken-flows')
       .then(res => res.json())
       .then(data => {
         setData(data);

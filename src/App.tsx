@@ -61,7 +61,7 @@ export default function App() {
   const lastPointerPos = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8099/api/graph')
+    fetch('http://127.0.0.1:8080/api/graph')
 
       .then(res => res.json())
       .then(data => {
@@ -86,7 +86,7 @@ export default function App() {
     try {
       const historyPayload = currentHistory.map(m => ({ role: m.role, text: m.text }));
       
-      const res = await fetch('http://127.0.0.1:8099/api/chat', {
+      const res = await fetch('http://127.0.0.1:8080/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: userMsg.text, history: historyPayload })
@@ -188,7 +188,7 @@ export default function App() {
 
   const handleNewChat = async () => {
     if (messages.length > 1) {
-      await fetch('http://127.0.0.1:8099/api/history', {
+      await fetch('http://127.0.0.1:8080/api/history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: chatId, messages, totalTokens })
@@ -202,7 +202,7 @@ export default function App() {
 
   const loadConversation = async (id: string) => {
     try {
-      const res = await fetch(`http://127.0.0.1:8099/api/history/${id}`);
+      const res = await fetch(`http://127.0.0.1:8080/api/history/${id}`);
       if(res.ok) {
         const data = await res.json();
         if (data.messages && data.messages.length > 0) {

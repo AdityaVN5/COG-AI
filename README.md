@@ -59,7 +59,9 @@ python backend/database.py
 ```
 Start the API server:
 ```powershell
-uvicorn backend.main:app --reload --port 8000
+```powershell
+uvicorn backend.main:app --reload --port 8080
+```
 ```
 
 ### 3. Frontend Installation (React + Vite)

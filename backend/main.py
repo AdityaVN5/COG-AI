@@ -205,3 +205,9 @@ def get_history(conv_id: str):
             pass
             
     return {"id": conv_id, "messages": messages, "totalTokens": total_tokens, "markdown": content}
+
+if __name__ == "__main__":
+    import uvicorn
+    # Use PORT environment variable if available (for Cloud Run), default to 8080
+    port = int(os.environ.get("PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port)
